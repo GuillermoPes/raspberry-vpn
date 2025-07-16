@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # Portainer - Gestión web de contenedores
+  portainer:
+    image: portainer/portainer-ce:linux-arm
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    networks:
+      - vpn-network
+
+  # WireGuard VPN Server
+  wireguard:
+    image: linuxserver/wireguard:arm32v7-latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - SERVERURL=auto # Cambiar por tu IP pública o dominio
+      - SERVERPORT=51820
+      - PEERS=5 # Número de clientes que quieres generar
+      - PEERDNS=10.13.13.100 # IP de Pi-hole
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+    volumes:
+      - ./wireguard-config:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      vpn-network:
+        ipv4_address: 10.13.13.2
+
+  # Pi-hole - Bloqueo de anuncios y DNS
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp"
+      - "8080:80/tcp"
+    environment:
+      TZ: 'Europe/Madrid'
+      WEBPASSWORD: 'tu_password_aqui' # Cambiar por tu contraseña
+      PIHOLE_DNS_: '10.13.13.3#5335' # Usar Unbound como DNS upstream
+      DNSMASQ_LISTENING: 'all'
+      VIRTUAL_HOST: pihole.local
+      PROXY_LOCATION: pihole
+    volumes:
+      - './pihole/etc-pihole:/etc/pihole'
+      - './pihole/etc-dnsmasq.d:/etc/dnsmasq.d'
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    networks:
+      vpn-network:
+        ipv4_address: 10.13.13.100
+
+  # Unbound - DNS resolver recursivo
+  unbound:
+    image: mvance/unbound-rpi:latest
+    container_name: unbound
+    restart: unless-stopped
+    hostname: unbound
+    volumes:
+      - ./unbound:/opt/unbound/etc/unbound/
+    ports:
+      - "5335:53/tcp"
+      - "5335:53/udp"
+    networks:
+      vpn-network:
+        ipv4_address: 10.13.13.3
+
+  # Nginx Proxy Manager
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./nginx-proxy-manager/data:/data
+      - ./nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+    networks:
+      - vpn-network
+
+  # Watchtower - Actualización automática de contenedores
+  watchtower:
+    image: containrrr/watchtower:armhf-latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Europe/Madrid
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400 # 24 horas
+    networks:
+      - vpn-network
+
+volumes:
+  portainer_data:
+
+networks:
+  vpn-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.13.13.0/24 

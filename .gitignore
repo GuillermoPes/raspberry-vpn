@@ -1,0 +1,37 @@
+# Archivos de configuración con datos sensibles
+.env
+*.env
+!config.env.example
+
+# Directorios de datos persistentes
+wireguard-config/
+pihole/
+unbound/root.hints
+nginx-proxy-manager/
+backups/
+
+# Logs
+*.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.temp
+*~
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de Docker
+.dockerignore
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos de backup
+*.bak
+*.backup 
