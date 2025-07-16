@@ -2,6 +2,20 @@
 
 Sistema completo para Raspberry Pi 3B con VPN WireGuard, Pi-hole, Portainer y servicios adicionales útiles.
 
+## 🚀 **¡NUEVO!** Instalación Interactiva
+
+**Solo 3 comandos para un servidor VPN completo:**
+
+```bash
+git clone https://github.com/GuillermoPes/raspberry-vpn.git
+cd raspberry-vpn
+sudo ./setup.sh
+```
+
+**¡Eso es todo!** El script interactivo se encarga de todo automáticamente. 🎉
+
+👉 **[Ver demostración de instalación](DEMO-INSTALACION.md)**
+
 ## 📋 Servicios Incluidos
 
 ### 🔧 Servicios Principales
