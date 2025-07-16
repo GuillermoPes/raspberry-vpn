@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 
 # Configuración
 WORK_DIR="/opt/vpn-server"
-INSTALL_USER="pi"
+INSTALL_USER=$(logname 2>/dev/null || echo $SUDO_USER)
 PROJECT_NAME="raspberry-vpn"
 
 # Variables globales para configuración
@@ -98,6 +98,18 @@ check_root() {
 
 check_system() {
     log_step "Verificando sistema..."
+    
+    # Detectar usuario actual
+    if [[ -z "$INSTALL_USER" ]]; then
+        INSTALL_USER=$(whoami)
+        if [[ "$INSTALL_USER" == "root" ]]; then
+            log_error "No se pudo detectar el usuario original"
+            echo -n "Introduce tu nombre de usuario: "
+            read -r INSTALL_USER
+        fi
+    fi
+    
+    log_info "Usuario detectado: $INSTALL_USER"
     
     # Verificar que es una Raspberry Pi
     if [[ ! -f /proc/cpuinfo ]] || ! grep -q "Raspberry Pi" /proc/cpuinfo; then
@@ -394,7 +406,12 @@ install_docker() {
         rm get-docker.sh
         
         # Agregar usuario al grupo docker
-        usermod -aG docker $INSTALL_USER
+        if id "$INSTALL_USER" &>/dev/null; then
+            usermod -aG docker $INSTALL_USER
+            log_info "Usuario $INSTALL_USER agregado al grupo docker"
+        else
+            log_warning "Usuario $INSTALL_USER no encontrado, saltando configuración de grupo docker"
+        fi
         
         log_success "Docker instalado"
     else
