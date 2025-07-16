@@ -98,6 +98,7 @@ docker-compose ps
 
 #### Portainer
 - Primera vez: Crear usuario admin
+- **Funcionalidad completa**: Gestión completa de contenedores (crear, detener, eliminar, actualizar)
 
 #### Pi-hole
 - Usuario: admin
@@ -108,6 +109,11 @@ docker-compose ps
 - Contraseña: changeme
 
 ## 🔒 Configuración de WireGuard
+
+### Configuración de Red
+- **Red Docker**: 10.13.13.0/24 (servicios internos)
+- **Red WireGuard**: 10.14.14.0/24 (clientes VPN)
+- **DNS para clientes VPN**: 10.13.13.100 (Pi-hole)
 
 ### Generar Configuraciones de Cliente
 

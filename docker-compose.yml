@@ -10,7 +10,7 @@ services:
       - "9000:9000"
       - "8000:8000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock  # Acceso completo para gestión
       - portainer_data:/data
     networks:
       - vpn-network
@@ -30,7 +30,7 @@ services:
       - SERVERPORT=51820
       - PEERS=5 # Número de clientes que quieres generar
       - PEERDNS=10.13.13.100 # IP de Pi-hole
-      - INTERNAL_SUBNET=10.13.13.0
+      - INTERNAL_SUBNET=10.14.14.0  # Subred diferente para evitar conflictos
       - ALLOWEDIPS=0.0.0.0/0
     volumes:
       - ./wireguard-config:/config
