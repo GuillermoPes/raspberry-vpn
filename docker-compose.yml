@@ -23,14 +23,14 @@ services:
       - NET_ADMIN
       - SYS_MODULE
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-      - SERVERURL=auto # Cambiar por tu IP pública o dominio
-      - SERVERPORT=51820
-      - PEERS=5 # Número de clientes que quieres generar
-      - PEERDNS=10.13.13.100 # IP de Pi-hole
-      - INTERNAL_SUBNET=10.14.14.0  # Subred diferente para evitar conflictos
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Madrid}
+      - SERVERURL=${SERVERURL:-auto}
+      - SERVERPORT=${SERVERPORT:-51820}
+      - PEERS=${PEERS:-5}
+      - PEERDNS=${PIHOLE_IP:-10.13.13.100}
+      - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.14.14.0}
       - ALLOWEDIPS=0.0.0.0/0
     volumes:
       - ./wireguard-config:/config
@@ -54,9 +54,9 @@ services:
       - "67:67/udp"
       - "8080:80/tcp"
     environment:
-      TZ: 'Europe/Madrid'
-      WEBPASSWORD: 'tu_password_aqui' # Cambiar por tu contraseña
-      PIHOLE_DNS_: '10.13.13.3#5335' # Usar Unbound como DNS upstream
+      TZ: '${TZ:-Europe/Madrid}'
+      WEBPASSWORD: '${PIHOLE_PASSWORD}'
+      PIHOLE_DNS_: '${PIHOLE_DNS:-10.13.13.3#5335}'
       DNSMASQ_LISTENING: 'all'
       VIRTUAL_HOST: pihole.local
       PROXY_LOCATION: pihole
@@ -108,9 +108,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - TZ=Europe/Madrid
+      - TZ=${TZ:-Europe/Madrid}
       - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400 # 24 horas
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-86400}
     networks:
       - vpn-network
 

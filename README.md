@@ -16,75 +16,58 @@ Sistema completo para Raspberry Pi 3B con VPN WireGuard, Pi-hole, Portainer y se
 
 ## 🛠️ Instalación
 
-### 1. Preparación de la Raspberry Pi
+### 🚀 Instalación Automática (Recomendada)
+
+**Solo necesitas 3 comandos:**
 
 ```bash
-# Actualizar sistema
-sudo apt update && sudo apt upgrade -y
-
-# Clonar o descargar este repositorio
-git clone https://github.com/tu-usuario/raspberry-vpn.git
+# 1. Clonar el repositorio
+git clone https://github.com/GuillermoPes/raspberry-vpn.git
 cd raspberry-vpn
 
-# Hacer el script ejecutable
-chmod +x install.sh
+# 2. Ejecutar instalación interactiva
+sudo ./setup.sh
+
+# 3. ¡Listo! El sistema estará funcionando
 ```
 
-### 2. Ejecutar Instalación Automática
+**¿Qué hace `setup.sh`?**
+- ✅ Instala Docker y dependencias automáticamente
+- ✅ Te pregunta la configuración paso a paso
+- ✅ Genera todos los archivos automáticamente
+- ✅ Configura firewall y red
+- ✅ Inicia todos los servicios
+- ✅ Te muestra información de acceso
+
+### 📋 Configuración Interactiva
+
+El script te pedirá:
+- **Contraseña de Pi-hole** (para la interfaz web)
+- **Zona horaria** (ej: Europe/Madrid)
+- **Número de clientes VPN** (1-10)
+- **IP pública o dominio** (se detecta automáticamente)
+
+### 🔧 Instalación Manual (Avanzada)
+
+Si prefieres el control total:
 
 ```bash
-# Ejecutar script de instalación (requiere sudo)
+# 1. Preparar sistema
+sudo apt update && sudo apt upgrade -y
+git clone https://github.com/GuillermoPes/raspberry-vpn.git
+cd raspberry-vpn
+
+# 2. Instalar dependencias
 sudo ./install.sh
-```
 
-El script instalará:
-- Docker y Docker Compose
-- Dependencias del sistema
-- Configuración de firewall
-- Configuración de red
-- Directorios necesarios
-
-### 3. Configuración Post-Instalación
-
-```bash
-# Reiniciar el sistema
-sudo reboot
-
-# Navegar al directorio de instalación
+# 3. Configurar manualmente
 cd /opt/vpn-server
+cp ~/raspberry-vpn/docker-compose.yml .
+cp ~/raspberry-vpn/config.env.example .env
+nano .env  # Editar configuración
 
-# Copiar archivos de configuración
-sudo cp ~/raspberry-vpn/docker-compose.yml .
-sudo cp ~/raspberry-vpn/unbound/unbound.conf unbound/
-sudo chown -R pi:pi .
-```
-
-### 4. Configuración Personalizada
-
-#### Editar docker-compose.yml:
-```yaml
-# Cambiar contraseña de Pi-hole
-WEBPASSWORD: 'tu_password_segura_aqui'
-
-# Configurar IP pública o dominio
-SERVERURL: tu-ip-publica.com  # o tu IP pública
-```
-
-#### Configurar red del router:
-- Abrir puerto **51820/UDP** hacia la Raspberry Pi
-- Configurar IP fija para la Raspberry Pi (recomendado)
-
-### 5. Iniciar Servicios
-
-```bash
-# En el directorio /opt/vpn-server
+# 4. Iniciar servicios
 docker-compose up -d
-
-# Ver logs
-docker-compose logs -f
-
-# Ver estado
-docker-compose ps
 ```
 
 ## 🌐 Acceso a los Servicios
