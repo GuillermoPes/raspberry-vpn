@@ -391,7 +391,8 @@ install_dependencies() {
         gnupg \
         lsb-release \
         iptables-persistent \
-        fail2ban
+        fail2ban \
+        qrencode
     
     log_success "Dependencias instaladas"
 }
@@ -576,9 +577,45 @@ start_services() {
     
     # Esperar a que los servicios estén listos
     log_info "Esperando a que los servicios estén listos..."
-    sleep 30
+    wait_for_services
     
     log_success "Servicios iniciados"
+}
+
+wait_for_services() {
+    local max_wait=300  # 5 minutos máximo
+    local elapsed=0
+    local interval=10
+    
+    local services=("pihole" "unbound" "wireguard" "portainer")
+    
+    while [ $elapsed -lt $max_wait ]; do
+        local all_healthy=true
+        
+        for service in "${services[@]}"; do
+            local health=$(docker inspect --format='{{.State.Health.Status}}' "$service" 2>/dev/null || echo "no-health")
+            local status=$(docker inspect --format='{{.State.Status}}' "$service" 2>/dev/null || echo "not-running")
+            
+            if [[ "$health" == "healthy" ]] || [[ "$health" == "no-health" && "$status" == "running" ]]; then
+                continue
+            else
+                all_healthy=false
+                break
+            fi
+        done
+        
+        if [[ "$all_healthy" == true ]]; then
+            log_success "Todos los servicios están listos"
+            return 0
+        fi
+        
+        echo -n "."
+        sleep $interval
+        elapsed=$((elapsed + interval))
+    done
+    
+    log_warning "Algunos servicios pueden tardar en estar completamente listos"
+    log_info "Puedes verificar el estado con: docker-compose ps"
 }
 
 # ========================================================================
@@ -618,6 +655,7 @@ show_final_info() {
     echo -e "${GREEN}🔒 WireGuard VPN:${NC}"
     echo "   Servidor: $DOMAIN_NAME:51820"
     echo "   Clientes configurados: $WIREGUARD_PEERS"
+    echo "   IP pública: $PUBLIC_IP"
     echo ""
     
     echo -e "${YELLOW}📱 Para obtener códigos QR de tus clientes VPN:${NC}"

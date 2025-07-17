@@ -158,8 +158,46 @@ update_services() {
 # Función para mostrar códigos QR WireGuard
 show_qr_codes() {
     echo -e "${GREEN}Códigos QR de WireGuard:${NC}"
-    echo "Revisa los logs de WireGuard para ver los códigos QR:"
-    docker logs wireguard 2>&1 | grep -A 50 "GENERATED QR CODE"
+    echo ""
+    
+    # Verificar que qrencode está instalado
+    if ! command -v qrencode &> /dev/null; then
+        echo -e "${RED}qrencode no está instalado. Instálalo con: sudo apt install qrencode${NC}"
+        echo ""
+        echo -e "${YELLOW}Alternativa: Ver logs de WireGuard${NC}"
+        docker logs wireguard 2>&1 | grep -A 50 "GENERATED QR CODE"
+        return
+    fi
+    
+    # Generar códigos QR desde archivos de configuración
+    local config_found=false
+    
+    for peer_conf in ./wireguard-config/peer*/*.conf; do
+        if [ -f "$peer_conf" ]; then
+            config_found=true
+            local peer_name=$(basename "$(dirname "$peer_conf")")
+            
+            echo -e "${BLUE}=== QR Code para $peer_name ===${NC}"
+            echo ""
+            
+            # Generar QR code
+            qrencode -t ansiutf8 < "$peer_conf"
+            echo ""
+            
+            echo -e "${CYAN}Archivo de configuración: $peer_conf${NC}"
+            echo ""
+            echo "----------------------------------------"
+            echo ""
+        fi
+    done
+    
+    if [[ "$config_found" == false ]]; then
+        echo -e "${YELLOW}No se encontraron archivos de configuración de WireGuard${NC}"
+        echo "Los archivos deberían estar en: ./wireguard-config/peer*/"
+        echo ""
+        echo -e "${YELLOW}Alternativa: Ver logs de WireGuard${NC}"
+        docker logs wireguard 2>&1 | grep -A 50 "GENERATED QR CODE"
+    fi
 }
 
 # Función para crear backup

@@ -1,10 +1,10 @@
 # 🏠 Raspberry Pi VPN Server Completo
 
-Sistema completo para Raspberry Pi 3B con VPN WireGuard, Pi-hole, Portainer y servicios adicionales útiles.
+Sistema completo para Raspberry Pi con VPN WireGuard, Pi-hole, Portainer y servicios adicionales útiles.
 
-## 🚀 **¡NUEVO!** Instalación Interactiva
+## 🚀 Instalación de 3 Comandos
 
-**Solo 3 comandos para un servidor VPN completo:**
+**Solo necesitas ejecutar estos 3 comandos:**
 
 ```bash
 git clone https://github.com/GuillermoPes/raspberry-vpn.git
@@ -12,210 +12,277 @@ cd raspberry-vpn
 sudo ./setup.sh
 ```
 
-**¡Eso es todo!** El script interactivo se encarga de todo automáticamente. 🎉
+**¡Eso es todo!** El script interactivo se encarga de instalar, configurar e iniciar todo automáticamente.
 
-👉 **[Ver demostración de instalación](DEMO-INSTALACION.md)**
+👉 **[Ver demostración completa](DEMO-INSTALACION.md)**
 
-## 📋 Servicios Incluidos
+## 📦 Servicios Incluidos
 
-### 🔧 Servicios Principales
-- **Portainer** (Puerto 9000) - Gestión web de contenedores Docker
-- **WireGuard** (Puerto 51820/UDP) - Servidor VPN para acceso remoto
-- **Pi-hole** (Puerto 8080) - Bloqueo de anuncios y servidor DNS
-- **Unbound** (Puerto 5335) - DNS resolver recursivo privado
+### 🔧 **Servicios Principales**
+- **🔒 WireGuard** (Puerto 51820/UDP) - Servidor VPN para acceso remoto seguro
+- **🛡️ Pi-hole** (Puerto 8080) - Bloqueo de anuncios y servidor DNS
+- **🌐 Unbound** (Puerto 5335) - DNS resolver recursivo privado
+- **🐳 Portainer** (Puerto 9000) - Gestión web completa de contenedores Docker
 
-### 🚀 Servicios Adicionales
-- **Nginx Proxy Manager** (Puerto 81) - Gestión fácil de proxy reverso y SSL
-- **Watchtower** - Actualización automática de contenedores
+### 🚀 **Servicios Adicionales**
+- **🔧 Nginx Proxy Manager** (Puerto 81) - Gestión de proxy reverso y certificados SSL
+- **🔄 Watchtower** - Actualización automática de contenedores Docker
 
-## 🛠️ Instalación
+## 🛠️ Características Técnicas
 
-### 🚀 Instalación Automática (Recomendada)
+### **🌐 Arquitectura de Red**
+- **Red Docker**: `10.13.13.0/24` (servicios internos)
+- **Red WireGuard**: `10.14.14.0/24` (clientes VPN)
+- **Separación de subredes** para evitar conflictos de enrutamiento
 
-**Solo necesitas 3 comandos:**
+### **📊 Healthchecks y Monitoreo**
+- Healthchecks automáticos en todos los servicios críticos
+- Detección de fallos y reinicio automático
+- Espera inteligente hasta 5 minutos para servicios
 
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/GuillermoPes/raspberry-vpn.git
-cd raspberry-vpn
+### **🔒 Seguridad**
+- Firewall configurado automáticamente
+- Redes Docker internas aisladas
+- Acceso DNS solo desde VPN
+- Fail2ban para protección SSH
 
-# 2. Ejecutar instalación interactiva
-sudo ./setup.sh
+### **⚡ Optimizaciones**
+- Imágenes ARM específicas para Raspberry Pi
+- Logs centralizados con Docker
+- Configuración de recursos optimizada
+- Detección automática de usuario
 
-# 3. ¡Listo! El sistema estará funcionando
-```
+## 🎯 Proceso de Instalación
 
-**¿Qué hace `setup.sh`?**
-- ✅ Instala Docker y dependencias automáticamente
-- ✅ Te pregunta la configuración paso a paso
-- ✅ Genera todos los archivos automáticamente
-- ✅ Configura firewall y red
-- ✅ Inicia todos los servicios
-- ✅ Te muestra información de acceso
+### **¿Qué hace `setup.sh`?**
 
-### 📋 Configuración Interactiva
+1. **🔍 Verificación del Sistema**
+   - Detecta automáticamente el usuario actual
+   - Verifica que es compatible con Raspberry Pi
+   - Instala dependencias básicas
 
-El script te pedirá:
-- **Contraseña de Pi-hole** (para la interfaz web)
-- **Zona horaria** (ej: Europe/Madrid)
-- **Número de clientes VPN** (1-10)
-- **IP pública o dominio** (se detecta automáticamente)
+2. **📋 Configuración Interactiva**
+   - Contraseña segura para Pi-hole
+   - Zona horaria (autodetectada)
+   - Número de clientes VPN (1-10)
+   - IP pública o dominio (autodetectado)
 
-### 🔧 Instalación Manual (Avanzada)
+3. **🔧 Instalación Automática**
+   - Docker y Docker Compose
+   - Configuración de firewall (UFW)
+   - Configuración de red (IP forwarding)
+   - Fail2ban para seguridad SSH
 
-Si prefieres el control total:
+4. **🚀 Configuración de Servicios**
+   - Genera archivos de configuración automáticamente
+   - Crea estructura de directorios
+   - Configura variables de entorno
+   - Inicia todos los servicios
 
-```bash
-# 1. Preparar sistema
-sudo apt update && sudo apt upgrade -y
-git clone https://github.com/GuillermoPes/raspberry-vpn.git
-cd raspberry-vpn
-
-# 2. Instalar dependencias
-sudo ./install.sh
-
-# 3. Configurar manualmente
-cd /opt/vpn-server
-cp ~/raspberry-vpn/docker-compose.yml .
-cp ~/raspberry-vpn/config.env.example .env
-nano .env  # Editar configuración
-
-# 4. Iniciar servicios
-docker-compose up -d
-```
+5. **✅ Verificación Final**
+   - Espera a que todos los servicios estén listos
+   - Verifica healthchecks
+   - Muestra información de acceso
 
 ## 🌐 Acceso a los Servicios
 
-### URLs de Acceso Local
-- **Portainer**: http://IP-DE-TU-PI:9000
-- **Pi-hole**: http://IP-DE-TU-PI:8080/admin
-- **Nginx Proxy Manager**: http://IP-DE-TU-PI:81
+### **URLs de Acceso**
+- **Pi-hole**: `http://IP-RASPBERRY:8080/admin`
+- **Portainer**: `http://IP-RASPBERRY:9000`
+- **Nginx Proxy Manager**: `http://IP-RASPBERRY:81`
 
-### Credenciales Iniciales
+### **Credenciales**
 
-#### Portainer
-- Primera vez: Crear usuario admin
-- **Funcionalidad completa**: Gestión completa de contenedores (crear, detener, eliminar, actualizar)
+#### **Pi-hole**
+- **Usuario**: `admin`
+- **Contraseña**: La que configuraste durante la instalación
 
-#### Pi-hole
-- Usuario: admin
-- Contraseña: La que configuraste en docker-compose.yml
+#### **Portainer**
+- **Primera vez**: Crear usuario administrador
+- **Funcionalidad**: Gestión completa de contenedores
 
-#### Nginx Proxy Manager
-- Usuario: admin@example.com
-- Contraseña: changeme
+#### **Nginx Proxy Manager**
+- **Usuario**: `admin@example.com`
+- **Contraseña**: `changeme` (cambiar en primer acceso)
 
 ## 🔒 Configuración de WireGuard
 
-### Configuración de Red
-- **Red Docker**: 10.13.13.0/24 (servicios internos)
-- **Red WireGuard**: 10.14.14.0/24 (clientes VPN)
-- **DNS para clientes VPN**: 10.13.13.100 (Pi-hole)
-
-### Generar Configuraciones de Cliente
-
+### **Obtener Códigos QR**
 ```bash
-# Ver logs de WireGuard para obtener códigos QR
+cd /opt/vpn-server
+./manage.sh
+# Seleccionar opción 5: Mostrar códigos QR WireGuard
+```
+
+### **Configuraciones Manuales**
+Los archivos de configuración se generan automáticamente en:
+```
+/opt/vpn-server/wireguard-config/peer[1-N]/peer[1-N].conf
+```
+
+### **Aplicaciones Cliente**
+- **Android/iOS**: App oficial WireGuard
+- **Windows/Mac/Linux**: Cliente oficial WireGuard
+
+## 📊 Gestión y Mantenimiento
+
+### **Script de Gestión**
+```bash
+cd /opt/vpn-server
+./manage.sh
+```
+
+**Funciones disponibles:**
+- 📊 Estado de servicios
+- 🔄 Reiniciar servicios
+- 📋 Ver logs
+- 🔧 Actualizar servicios
+- 📱 Mostrar códigos QR WireGuard
+- 💾 Crear backup
+- 🔒 Cambiar contraseña Pi-hole
+- 🌐 Mostrar IP pública
+- 🚀 Información del sistema
+
+### **Comandos Útiles**
+```bash
+# Ver estado con healthchecks
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# Ver logs específicos
+docker logs pihole
 docker logs wireguard
-
-# O acceder al contenedor
-docker exec -it wireguard /bin/bash
-```
-
-### Configuración Manual del Cliente
-
-Las configuraciones se generan automáticamente en:
-```
-/opt/vpn-server/wireguard-config/peer[1-5]/peer[1-5].conf
-```
-
-## 📊 Monitoreo y Mantenimiento
-
-### Comandos Útiles
-
-```bash
-# Ver estado de todos los servicios
-docker-compose ps
-
-# Reiniciar un servicio específico
-docker-compose restart [servicio]
-
-# Ver logs de un servicio
-docker-compose logs [servicio]
+docker logs unbound
 
 # Actualizar servicios
-docker-compose pull
-docker-compose up -d
-```
+docker-compose pull && docker-compose up -d
 
-### Backup
-
-```bash
 # Crear backup
-sudo tar -czf backup-vpn-$(date +%Y%m%d).tar.gz /opt/vpn-server
-
-# Restaurar backup
-sudo tar -xzf backup-vpn-20240101.tar.gz -C /
+tar -czf backup-vpn-$(date +%Y%m%d).tar.gz /opt/vpn-server
 ```
 
-## 🔧 Solución de Problemas
+## 🔧 Configuración de Router
 
-### WireGuard no conecta
-1. Verificar que el puerto 51820/UDP esté abierto en el router
-2. Confirmar IP pública correcta en SERVERURL
-3. Verificar logs: `docker logs wireguard`
+### **Puertos Necesarios**
+- **51820/UDP**: WireGuard (OBLIGATORIO)
+- **22/TCP**: SSH (recomendado desde red local)
 
-### Pi-hole no resuelve DNS
-1. Verificar que Unbound esté funcionando: `docker logs unbound`
-2. Comprobar configuración DNS del cliente
-3. Verificar logs: `docker logs pihole`
+### **Configuración Recomendada**
+1. **IP fija** para la Raspberry Pi
+2. **Puerto 51820/UDP** abierto hacia la Raspberry Pi
+3. **DDNS** (DuckDNS, No-IP) para acceso con dominio
 
-### Servicios no inician
-1. Verificar recursos: `free -h` y `df -h`
-2. Comprobar logs: `docker-compose logs`
-3. Reiniciar servicios: `docker-compose restart`
+## 🚨 Solución de Problemas
 
-## 🚀 Mejoras Adicionales
+### **WireGuard no conecta**
+```bash
+# Verificar estado del servicio
+docker logs wireguard
 
-### Opcional: Configurar Dominio Propio
-1. Registrar dominio (DuckDNS, No-IP, etc.)
-2. Configurar DDNS en router
-3. Actualizar SERVERURL en WireGuard
+# Verificar configuración
+docker exec -it wireguard wg show
 
-### Opcional: Certificados SSL
-1. Usar Nginx Proxy Manager
-2. Configurar Let's Encrypt
-3. Proxy para servicios internos
+# Verificar puertos
+sudo netstat -ulpn | grep 51820
+```
 
-## 📱 Aplicaciones Cliente
+### **Pi-hole no funciona**
+```bash
+# Verificar estado
+docker logs pihole
 
-### Android/iOS
-- **WireGuard** - App oficial
-- **AdGuard** - Cliente DNS alternativo
+# Verificar DNS
+nslookup google.com localhost
 
-### Windows/Mac/Linux
-- **WireGuard** - Cliente oficial
-- **Configuración manual** - Usar archivos .conf
+# Reiniciar servicio
+docker-compose restart pihole
+```
+
+### **Servicios no inician**
+```bash
+# Ver recursos del sistema
+free -h && df -h
+
+# Ver logs de todos los servicios
+docker-compose logs
+
+# Reiniciar todos los servicios
+docker-compose restart
+```
+
+## 📈 Recursos del Sistema
+
+### **Memoria Estimada (Raspberry Pi 3B)**
+- **Pi-hole**: ~150MB
+- **WireGuard**: ~50MB
+- **Portainer**: ~30MB
+- **Unbound**: ~20MB
+- **Nginx Proxy Manager**: ~100MB
+- **Sistema**: ~200MB
+- **Total**: ~550MB de 1GB disponible
+
+### **CPU**
+- **Uso normal**: 10-20%
+- **Picos**: Durante conexiones VPN iniciales
+- **Optimización**: CPU governor configurado automáticamente
 
 ## 🔄 Actualizaciones
 
-El sistema incluye Watchtower que actualiza automáticamente los contenedores cada 24 horas.
+### **Automáticas**
+Watchtower actualiza automáticamente los contenedores cada 24 horas.
 
-Para actualización manual:
+### **Manuales**
 ```bash
 cd /opt/vpn-server
 docker-compose pull
 docker-compose up -d
 ```
 
+## 🛡️ Seguridad
+
+### **Configuración Automática**
+- **Firewall UFW** configurado automáticamente
+- **Fail2ban** para protección SSH
+- **Redes Docker aisladas**
+- **Acceso DNS solo desde VPN**
+
+### **Mejores Prácticas**
+1. Cambiar contraseñas por defecto
+2. Configurar IP fija para la Raspberry Pi
+3. Usar DDNS para acceso remoto
+4. Mantener sistema actualizado
+
+## 🎯 Requisitos
+
+### **Hardware**
+- Raspberry Pi 3B o superior
+- MicroSD de 32GB o más
+- Conexión ethernet (recomendado)
+
+### **Software**
+- Raspberry Pi OS (recomendado)
+- Acceso a internet
+- Permisos de sudo
+
+### **Red**
+- Puerto 51820/UDP abierto en router
+- IP fija para Raspberry Pi (recomendado)
+
 ## 📞 Soporte
 
-Si tienes problemas:
-1. Revisar logs: `docker-compose logs`
-2. Verificar configuración de red
-3. Comprobar recursos del sistema
-4. Consultar documentación de cada servicio
+### **Verificaciones Básicas**
+1. Comprobar logs: `docker-compose logs`
+2. Verificar recursos: `free -h` y `df -h`
+3. Revisar configuración de red
+4. Verificar puertos abiertos
+
+### **Información del Sistema**
+```bash
+# Script de información completa
+cd /opt/vpn-server
+./manage.sh
+# Opción 9: Información del sistema
+```
 
 ---
 
-**¡Disfruta de tu servidor VPN casero completo!** 🏠🔒 
+**🎉 ¡Disfruta de tu servidor VPN casero completo!** 🏠🔒 

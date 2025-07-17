@@ -40,6 +40,12 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wg show | grep -q interface || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       vpn-network:
         ipv4_address: 10.13.13.2
@@ -66,6 +72,12 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pihole status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       vpn-network:
         ipv4_address: 10.13.13.100
@@ -81,6 +93,12 @@ services:
     ports:
       - "5335:53/tcp"
       - "5335:53/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "nslookup google.com 127.0.0.1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       vpn-network:
         ipv4_address: 10.13.13.3
