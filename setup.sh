@@ -29,7 +29,8 @@ INSTALL_USER=$(logname 2>/dev/null || echo $SUDO_USER)
 PROJECT_NAME="raspberry-vpn"
 
 # Variables globales para configuración
-ADGUARD_PASSWORD=""
+
+WG_EASY_PASSWORD=""
 TIMEZONE="Europe/Madrid"
 WIREGUARD_PEERS="5"
 PUBLIC_IP=""
@@ -229,45 +230,7 @@ welcome_message() {
     press_enter
 }
 
-collect_adguard_config() {
-    clear
-    echo -e "${CYAN}🛡️  Configuración de AdGuard Home${NC}"
-    echo ""
-    echo "AdGuard Home bloqueará anuncios y será tu servidor DNS completo."
-    echo ""
-    echo -e "${GREEN}Características de AdGuard Home:${NC}"
-    echo "• Bloqueo de anuncios avanzado"
-    echo "• DNS-over-HTTPS y DNS-over-TLS nativos"
-    echo "• Interfaz web moderna y potente"
-    echo "• Estadísticas detalladas"
-    echo "• Configuración automática"
-    echo ""
-    
-    while true; do
-        echo -n "Introduce una contraseña segura para AdGuard Home: "
-        read -s ADGUARD_PASSWORD
-        echo ""
-        
-        if [[ ${#ADGUARD_PASSWORD} -lt 8 ]]; then
-            log_error "La contraseña debe tener al menos 8 caracteres"
-            continue
-        fi
-        
-        echo -n "Confirma la contraseña: "
-        read -s password_confirm
-        echo ""
-        
-        if [[ "$ADGUARD_PASSWORD" == "$password_confirm" ]]; then
-            log_success "Contraseña de AdGuard Home configurada"
-            break
-        else
-            log_error "Las contraseñas no coinciden"
-        fi
-    done
-    
-    echo ""
-    press_enter
-}
+
 
 collect_timezone() {
     clear
@@ -287,33 +250,7 @@ collect_timezone() {
     press_enter
 }
 
-collect_wireguard_config() {
-    clear
-    echo -e "${CYAN}🔒 Configuración de WireGuard VPN${NC}"
-    echo ""
-    echo "WireGuard creará configuraciones para tus dispositivos."
-    echo ""
-    
-    while true; do
-        echo -n "¿Cuántos clientes VPN quieres generar? (1-10) [${WIREGUARD_PEERS}]: "
-        read -r input_peers
-        
-        if [[ -z "$input_peers" ]]; then
-            break
-        fi
-        
-        if [[ "$input_peers" =~ ^[1-9]$|^10$ ]]; then
-            WIREGUARD_PEERS="$input_peers"
-            break
-        else
-            log_error "Introduce un número entre 1 y 10"
-        fi
-    done
-    
-    log_success "Configuración WireGuard: $WIREGUARD_PEERS clientes"
-    echo ""
-    press_enter
-}
+
 
 collect_network_config() {
     clear
@@ -399,6 +336,39 @@ collect_network_config() {
     fi
     
     log_success "Configuración de red: $DOMAIN_NAME"
+    echo ""
+    press_enter
+}
+
+collect_wg_easy_config() {
+    clear
+    echo -e "${CYAN}🔒 Configuración de WG-Easy (Interfaz Web WireGuard)${NC}"
+    echo ""
+    echo "WG-Easy te permitirá gestionar tus clientes WireGuard desde una interfaz web."
+    echo ""
+    
+    while true; do
+        echo -n "Introduce una contraseña segura para WG-Easy: "
+        read -s WG_EASY_PASSWORD
+        echo ""
+        
+        if [[ ${#WG_EASY_PASSWORD} -lt 8 ]]; then
+            log_error "La contraseña debe tener al menos 8 caracteres"
+            continue
+        fi
+        
+        echo -n "Confirma la contraseña: "
+        read -s password_confirm
+        echo ""
+        
+        if [[ "$WG_EASY_PASSWORD" == "$password_confirm" ]]; then
+            log_success "Contraseña de WG-Easy configurada"
+            break
+        else
+            log_error "Las contraseñas no coinciden"
+        fi
+    done
+    
     echo ""
     press_enter
 }
@@ -496,10 +466,9 @@ configure_duckdns_auto_update() {
 
 collect_user_input() {
     welcome_message
-    collect_adguard_config
     collect_timezone
-    collect_wireguard_config
     collect_network_config
+    collect_wg_easy_config
     show_configuration_summary
 }
 
@@ -634,7 +603,7 @@ configure_firewall() {
     # Puertos necesarios
     ufw allow ssh
     ufw allow 9000/tcp     # Portainer
-    ufw allow 51820/udp    # WireGuard
+    ufw allow 51821/tcp    # WG-Easy Web UI
     ufw allow 53/tcp       # DNS
     ufw allow 53/udp       # DNS
     ufw allow 80/tcp       # HTTP
@@ -708,6 +677,7 @@ create_directories() {
     mkdir -p $WORK_DIR/wireguard-config
     mkdir -p $WORK_DIR/adguardhome/work
     mkdir -p $WORK_DIR/adguardhome/conf
+    mkdir -p $WORK_DIR/wg-easy
     mkdir -p $WORK_DIR/nginx-proxy-manager/data
     mkdir -p $WORK_DIR/nginx-proxy-manager/letsencrypt
     
@@ -737,7 +707,9 @@ DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
 DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 
 # Configuración de AdGuard Home
-ADGUARD_PASSWORD=$ADGUARD_PASSWORD
+
+
+WG_EASY_PASSWORD=$WG_EASY_PASSWORD
 
 # Configuración de WireGuard
 PEERS=$WIREGUARD_PEERS
@@ -746,7 +718,7 @@ INTERNAL_SUBNET=10.14.14.0
 
 # Configuración de red interna
 ADGUARD_IP=10.13.13.100
-WIREGUARD_IP=10.13.13.2
+WG_EASY_IP=10.13.13.4
 
 # Configuración de Watchtower
 WATCHTOWER_POLL_INTERVAL=86400
@@ -842,10 +814,10 @@ if [[ "$CURRENT_IP" != "$PREVIOUS_IP" ]]; then
         echo "$CURRENT_IP" > "$IP_FILE"
         
         # Actualizar configuración de WireGuard si es necesario
-        if docker ps | grep -q wireguard; then
-            log_message "Reiniciando WireGuard para aplicar nueva IP..."
+        if docker ps | grep -q wg-easy; then
+            log_message "Reiniciando WG-Easy para aplicar nueva IP..."
             cd /opt/vpn-server
-            docker-compose restart wireguard
+            docker-compose restart wg-easy
         fi
     else
         log_message "ERROR: Falló actualización de DuckDNS: $RESPONSE"
@@ -891,7 +863,6 @@ http:
   session_ttl: 720h
 users:
   - name: admin
-    password: \$2y\$10\$\${ADGUARD_PASSWORD//\$/\\\$}
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
@@ -1122,7 +1093,7 @@ wait_for_services() {
     local elapsed=0
     local interval=10
     
-    local services=("adguardhome" "wireguard" "portainer" "nginx-proxy-manager" "watchtower")
+    local services=("adguardhome" "wg-easy" "portainer" "nginx-proxy-manager" "watchtower")
     
     while [ $elapsed -lt $max_wait ]; do
         local all_healthy=true
@@ -1177,7 +1148,7 @@ show_final_info() {
     echo "   URL inicial: http://$LOCAL_IP:3000 (primera configuración)"
     echo "   URL final: http://$LOCAL_IP:8080 (después de configurar)"
     echo "   Usuario: [Configuras en el primer acceso]"
-    echo "   Contraseña: [La que configuraste]"
+    echo "   Contraseña: [Configuras en el primer acceso]"
     echo ""
     echo -e "${GREEN}🐳 Portainer (Gestión Docker):${NC}"
     echo "   URL: http://$LOCAL_IP:9000"
@@ -1188,10 +1159,12 @@ show_final_info() {
     echo "   Usuario: admin@example.com"
     echo "   Contraseña: changeme"
     echo ""
-    echo -e "${GREEN}🔒 WireGuard VPN:${NC}"
-    echo "   Servidor: $DOMAIN_NAME:51820"
-    echo "   Clientes configurados: $WIREGUARD_PEERS"
-    echo "   IP pública: $PUBLIC_IP"
+    echo -e "${GREEN}🔒 WG-Easy (Interfaz Web WireGuard):${NC}"
+    echo "   URL: http://$LOCAL_IP:51821"
+    echo "   Usuario: admin"
+    echo "   Contraseña: [La que configuraste para WG-Easy]"
+    echo "   Servidor VPN: $DOMAIN_NAME:51820"
+    echo "   Clientes configurados: Gestionado desde WG-Easy"
     echo ""
     
     if [[ "$USE_DUCKDNS" == "true" ]]; then

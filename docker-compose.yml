@@ -15,40 +15,32 @@ services:
     networks:
       - vpn-network
 
-  # WireGuard VPN Server
-  wireguard:
-    image: linuxserver/wireguard:latest
-    container_name: wireguard
+  # WireGuard Easy - Interfaz web para WireGuard
+  wg-easy:
+    image: weejewel/wg-easy:latest
+    container_name: wg-easy
+    restart: unless-stopped
+    environment:
+      - WG_HOST=${SERVERURL}
+      - WG_PORT=${SERVERPORT}
+      - PASSWORD=${WG_EASY_PASSWORD}
+      - WG_DEFAULT_DNS=10.13.13.100 # AdGuard Home IP
+      - WG_MTU=1420
+      - WG_MARCH=arm64 # O armv7, dependiendo de la RPi
+    volumes:
+      - ./wg-easy:/etc/wireguard
+    ports:
+      - "51821:51821/tcp" # Interfaz web
+      - "51820:51820/udp" # Puerto de WireGuard (debe coincidir con SERVERPORT)
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-Europe/Madrid}
-      - SERVERURL=${SERVERURL:-auto}
-      - SERVERPORT=${SERVERPORT:-51820}
-      - PEERS=${PEERS:-5}
-      - PEERDNS=10.13.13.100
-      - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.14.14.0}
-      - ALLOWEDIPS=0.0.0.0/0
-    volumes:
-      - ./wireguard-config:/config
-      - /lib/modules:/lib/modules
-    ports:
-      - "51820:51820/udp"
     sysctls:
+      - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wg show | grep -q interface || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     networks:
       vpn-network:
-        ipv4_address: 10.13.13.2
+        ipv4_address: 10.13.13.4 # Nueva IP para wg-easy
 
   # AdGuard Home - Bloqueo de anuncios y DNS completo
   adguardhome:
