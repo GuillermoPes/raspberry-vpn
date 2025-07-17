@@ -74,6 +74,8 @@ sudo ./setup.sh
 - Configuración de recursos optimizada
 - Detección automática de usuario
 
+👉 **[Guía de Optimización para Raspberry Pi 3B](optimizacion-rpi3b.md)**
+
 ## 🎯 Proceso de Instalación
 
 ### **¿Qué hace `setup.sh`?**
@@ -84,17 +86,21 @@ sudo ./setup.sh
    - Instala dependencias básicas
 
 2. **📋 Configuración Interactiva**
-   - Contraseña segura para AdGuard Home
+   - Correo electrónico para administración y notificaciones
+   - Contraseña maestra para servicios (AdGuard Home, Nginx Proxy Manager)
+   - Contraseña segura para WG-Easy
    - Zona horaria (autodetectada)
    - Número de clientes VPN (1-10)
    - IP pública o dominio (autodetectado)
    - **🦆 DuckDNS automático**: Si usas DuckDNS, pide token y configura actualización automática
+   - **📧 Configuración SMTP opcional**: Para notificaciones por email
 
 3. **🔧 Instalación Automática**
    - Docker y Docker Compose
    - Configuración de firewall (UFW)
    - Configuración de red (IP forwarding)
    - Fail2ban para seguridad SSH
+   - **Automatización Nginx Proxy Manager**: Configura credenciales, proxy hosts y certificados SSL autofirmados.
 
 4. **🚀 Configuración de Servicios**
    - Genera archivos de configuración automáticamente
@@ -110,23 +116,29 @@ sudo ./setup.sh
 ## 🌐 Acceso a los Servicios
 
 ### **URLs de Acceso**
-- **AdGuard Home**: `http://IP-RASPBERRY:8080` (interfaz web) / `http://IP-RASPBERRY:3000` (configuración inicial)
+- **AdGuard Home**: `https://adguardhome.vpn.local` (interfaz web) / `http://IP-RASPBERRY:3000` (configuración inicial)
 - **Portainer**: `http://IP-RASPBERRY:9000`
-- **Nginx Proxy Manager**: `http://IP-RASPBERRY:81`
+- **Nginx Proxy Manager**: `https://wgeasy.vpn.local` (WG-Easy) / `http://IP-RASPBERRY:81` (administración)
 
 ### **Credenciales**
 
 #### **AdGuard Home**
 - **Usuario**: `admin` (o el que configures en el primer acceso)
-- **Contraseña**: La que configuraste durante la instalación
+- **Contraseña**: La contraseña maestra que configuraste
 
 #### **Portainer**
 - **Primera vez**: Crear usuario administrador
 - **Funcionalidad**: Gestión completa de contenedores
 
 #### **Nginx Proxy Manager**
-- **Usuario**: `admin@example.com`
-- **Contraseña**: `changeme` (cambiar en primer acceso)
+- **Usuario**: Tu correo electrónico (el que configuraste)
+- **Contraseña**: La contraseña maestra que configuraste
+
+⚠️ **Importante**: Para que los dominios `.vpn.local` funcionen, necesitarás añadir las siguientes entradas a tu archivo `/etc/hosts` (o similar en Windows/macOS) o configurar tu DNS local (ej. en tu router o en AdGuard Home):
+```
+10.13.13.100 adguardhome.vpn.local
+10.13.13.4 wgeasy.vpn.local
+```
 
 ## 🔒 Configuración de WireGuard
 

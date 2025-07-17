@@ -58,10 +58,68 @@ Características de AdGuard Home:
 • Estadísticas detalladas
 • Configuración automática
 
-Introduce una contraseña segura para AdGuard Home: ********
+[✅] Contraseña de AdGuard Home configurada automáticamente con la contraseña maestra.
+
+Presiona Enter para continuar...
+```
+
+### **Configuración de WG-Easy (Interfaz Web WireGuard)**
+```
+🔒 Configuración de WG-Easy (Interfaz Web WireGuard)
+
+WG-Easy te permitirá gestionar tus clientes WireGuard desde una interfaz web.
+
+Introduce una contraseña segura para WG-Easy: ********
 Confirma la contraseña: ********
 
-[✅] Contraseña de AdGuard Home configurada
+[✅] Contraseña de WG-Easy configurada
+
+Presiona Enter para continuar...
+```
+
+### **Configuración de Correo Electrónico**
+```
+📧 Configuración de Correo Electrónico
+
+Introduce tu dirección de correo electrónico. Se utilizará para la configuración
+inicial de Nginx Proxy Manager y futuras notificaciones.
+
+Introduce tu correo electrónico: tu_email@example.com
+
+[✅] Correo electrónico configurado: tu_email@example.com
+
+Presiona Enter para continuar...
+```
+
+### **Contraseña Maestra para Servicios**
+```
+🔑 Contraseña Maestra para Servicios
+
+Introduce una contraseña maestra que se intentará usar para configurar
+automáticamente las contraseñas de los servicios (AdGuard Home, Nginx Proxy Manager).
+Esto simplificará la gestión, pero puedes cambiarlas individualmente después.
+
+Introduce la contraseña maestra: ********
+Confirma la contraseña maestra: ********
+
+[✅] Contraseña maestra configurada
+
+Presiona Enter para continuar...
+```
+
+### **Configuración de Notificaciones por Email (Opcional)**
+```
+📧 Configuración de Notificaciones por Email (Opcional)
+
+Puedes configurar el envío de notificaciones por email para informes periódicos o alertas.
+Si no deseas configurar esto ahora, simplemente presiona Enter en cada campo.
+
+Servidor SMTP (ej: smtp.gmail.com): smtp.gmail.com
+Puerto SMTP (ej: 587 para TLS, 465 para SSL): 587
+Usuario SMTP (tu email completo): tu_email@example.com
+Contraseña SMTP (o contraseña de aplicación si usas Gmail): ********
+
+[✅] Configuración SMTP completada.
 
 Presiona Enter para continuar...
 ```
@@ -144,9 +202,11 @@ Por favor, revisa la configuración antes de continuar:
 Sistema:
   • Zona horaria: Europe/Madrid
   • Directorio de instalación: /opt/vpn-server
+  • Correo electrónico: tu_email@example.com
+  • Contraseña Maestra: [Configurada]
 
 AdGuard Home:
-  • Contraseña: [Configurada]
+  • Contraseña: [Configurada automáticamente]
   • Puerto web: 8080 (HTTP) / 8443 (HTTPS)
   • Puerto inicial: 3000 (primer acceso)
 
@@ -218,18 +278,24 @@ Presiona Enter para continuar...
 
 🛡️  AdGuard Home (Bloqueo de anuncios):
    URL inicial: http://192.168.1.100:3000 (primera configuración)
-   URL final: http://192.168.1.100:8080 (después de configurar)
+   URL final: https://adguardhome.vpn.local (después de configurar)
    Usuario: [Configuras en el primer acceso]
-   Contraseña: [La que configuraste]
+   Contraseña: [La contraseña maestra que configuraste]
 
 🐳 Portainer (Gestión Docker):
    URL: http://192.168.1.100:9000
    (Crea tu usuario administrador en el primer acceso)
 
 🚀 Nginx Proxy Manager:
-   URL: http://192.168.1.100:81
-   Usuario: admin@example.com
-   Contraseña: changeme
+   URL: https://adguardhome.vpn.local (AdGuard Home)
+   URL: https://wgeasy.vpn.local (WG-Easy)
+   URL de administración: http://192.168.1.100:81
+   Usuario: tu_email@example.com
+   Contraseña: [La contraseña maestra que configuraste]
+   (La primera vez que accedas a las URLs HTTPS, acepta la advertencia de seguridad)
+   ⚠️  Para que los dominios .vpn.local funcionen, añade las siguientes líneas a tu archivo /etc/hosts (o similar) o configura tu DNS local:
+      10.13.13.100 adguardhome.vpn.local
+      10.13.13.4 wgeasy.vpn.local
 
 🔒 WireGuard VPN:
    Servidor: casa.duckdns.org:51820

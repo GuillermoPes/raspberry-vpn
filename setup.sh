@@ -39,6 +39,8 @@ USE_DOMAIN="false"
 USE_DUCKDNS="false"
 DUCKDNS_DOMAIN=""
 DUCKDNS_TOKEN=""
+USER_EMAIL=""
+MASTER_PASSWORD=""
 
 # ========================================================================
 # FUNCIONES AUXILIARES
@@ -373,6 +375,112 @@ collect_wg_easy_config() {
     press_enter
 }
 
+collect_user_email() {
+    clear
+    echo -e "${CYAN}📧 Configuración de Correo Electrónico${NC}"
+    echo ""
+    echo "Introduce tu dirección de correo electrónico. Se utilizará para la configuración"
+    echo "inicial de Nginx Proxy Manager y futuras notificaciones."
+    echo ""
+    
+    while true; do
+        echo -n "Introduce tu correo electrónico: "
+        read -r input_email
+        
+        if [[ "$input_email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            USER_EMAIL="$input_email"
+            log_success "Correo electrónico configurado: $USER_EMAIL"
+            break
+        else
+            log_error "Formato de correo electrónico inválido. Inténtalo de nuevo."
+        fi
+    done
+    
+    echo ""
+    press_enter
+}
+
+collect_master_password() {
+    clear
+    echo -e "${CYAN}🔑 Contraseña Maestra para Servicios${NC}"
+    echo ""
+    echo "Introduce una contraseña maestra que se intentará usar para configurar"
+    echo "automáticamente las contraseñas de los servicios (AdGuard Home, Nginx Proxy Manager)."
+    echo "Esto simplificará la gestión, pero puedes cambiarlas individualmente después."
+    echo ""
+    
+    while true; do
+        echo -n "Introduce la contraseña maestra: "
+        read -s MASTER_PASSWORD
+        echo ""
+        
+        if [[ ${#MASTER_PASSWORD} -lt 10 ]]; then
+            log_error "La contraseña maestra debe tener al menos 10 caracteres"
+            continue
+        fi
+        
+        echo -n "Confirma la contraseña maestra: "
+        read -s password_confirm
+        echo ""
+        
+        if [[ "$MASTER_PASSWORD" == "$password_confirm" ]]; then
+            log_success "Contraseña maestra configurada"
+            break
+        else
+            log_error "Las contraseñas no coinciden"
+        fi
+    done
+    
+    echo ""
+    press_enter
+}
+
+collect_smtp_config() {
+    clear
+    echo -e "${CYAN}📧 Configuración de Notificaciones por Email (Opcional)${NC}"
+    echo ""
+    echo "Puedes configurar el envío de notificaciones por email para informes periódicos o alertas."
+    echo "Si no deseas configurar esto ahora, simplemente presiona Enter en cada campo."
+    echo ""
+    
+    echo -n "Servidor SMTP (ej: smtp.gmail.com): "
+    read -r input_smtp_server
+    if [[ -n "$input_smtp_server" ]]; then
+        SMTP_SERVER="$input_smtp_server"
+    fi
+
+    echo -n "Puerto SMTP (ej: 587 para TLS, 465 para SSL): "
+    read -r input_smtp_port
+    if [[ -n "$input_smtp_port" ]]; then
+        SMTP_PORT="$input_smtp_port"
+    fi
+
+    echo -n "Usuario SMTP (tu email completo): "
+    read -r input_smtp_username
+    if [[ -n "$input_smtp_username" ]]; then
+        SMTP_USERNAME="$input_smtp_username"
+    fi
+
+    echo -n "Contraseña SMTP (o contraseña de aplicación si usas Gmail): "
+    read -s input_smtp_password
+    echo ""
+    if [[ -n "$input_smtp_password" ]]; then
+        SMTP_PASSWORD="$input_smtp_password"
+    fi
+
+    if [[ -n "$SMTP_SERVER" && -n "$SMTP_PORT" && -n "$SMTP_USERNAME" && -n "$SMTP_PASSWORD" ]]; then
+        log_success "Configuración SMTP completada."
+    else
+        log_warning "Configuración SMTP omitida o incompleta."
+        SMTP_SERVER=""
+        SMTP_PORT=""
+        SMTP_USERNAME=""
+        SMTP_PASSWORD=""
+    fi
+    echo ""
+    press_enter
+}
+
 show_configuration_summary() {
     clear
     echo -e "${CYAN}📋 Resumen de configuración${NC}"
@@ -382,9 +490,11 @@ show_configuration_summary() {
     echo -e "${GREEN}Sistema:${NC}"
     echo "  • Zona horaria: $TIMEZONE"
     echo "  • Directorio de instalación: $WORK_DIR"
+    echo "  • Correo electrónico: $USER_EMAIL"
+    echo "  • Contraseña Maestra: [Configurada]"
     echo ""
     echo -e "${GREEN}AdGuard Home:${NC}"
-    echo "  • Contraseña: [Configurada]"
+    echo "  • Contraseña: [Configurada automáticamente]"
     echo "  • Puerto web: 8080 (HTTP) / 8443 (HTTPS)"
     echo "  • Puerto inicial: 3000 (primer acceso)"
     echo ""
@@ -469,6 +579,9 @@ collect_user_input() {
     collect_timezone
     collect_network_config
     collect_wg_easy_config
+    collect_user_email
+    collect_master_password
+    collect_smtp_config
     show_configuration_summary
 }
 
@@ -531,6 +644,7 @@ install_docker() {
         if ! groups "$INSTALL_USER" | grep -q docker; then
             log_info "Agregando usuario $INSTALL_USER al grupo docker..."
             usermod -aG docker "$INSTALL_USER"
+            log_warning "Por favor, cierra tu sesión y vuelve a iniciarla para que los cambios de Docker surtan efecto."
         else
             log_info "Usuario $INSTALL_USER ya está en el grupo docker"
         fi
@@ -544,6 +658,7 @@ install_docker() {
         if id "$INSTALL_USER" &>/dev/null; then
             usermod -aG docker "$INSTALL_USER"
             log_info "Usuario $INSTALL_USER agregado al grupo docker"
+            log_warning "Por favor, cierra tu sesión y vuelve a iniciarla para que los cambios de Docker surtan efecto."
         else
             log_warning "Usuario $INSTALL_USER no encontrado, saltando configuración de grupo docker"
         fi
@@ -711,6 +826,10 @@ DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 
 WG_EASY_PASSWORD=$WG_EASY_PASSWORD
 
+# Credenciales de usuario
+USER_EMAIL=$USER_EMAIL
+MASTER_PASSWORD=$MASTER_PASSWORD
+
 # Configuración de WireGuard
 PEERS=$WIREGUARD_PEERS
 SERVERPORT=51820
@@ -722,6 +841,13 @@ WG_EASY_IP=10.13.13.4
 
 # Configuración de Watchtower
 WATCHTOWER_POLL_INTERVAL=86400
+
+# Configuración de Email para Notificaciones
+SMTP_SERVER="$SMTP_SERVER"
+SMTP_PORT="$SMTP_PORT"
+SMTP_USERNAME="$SMTP_USERNAME"
+SMTP_PASSWORD="$SMTP_PASSWORD"
+NOTIFICATION_RECIPIENT="$USER_EMAIL"
 EOF
     
     log_success "Archivo de configuración generado"
@@ -731,7 +857,7 @@ copy_configuration_files() {
     log_step "Copiando archivos de configuración..."
     
     # Lista de archivos a copiar (solo los que existen)
-    local files_to_copy=("docker-compose.yml" "README.md" "DEMO-INSTALACION.md" "manage.sh" "config.env.example")
+    local files_to_copy=("docker-compose.yml" "README.md" "DEMO-INSTALACION.md" "manage.sh" "config.env.example" "configure_npm.sh" "send_email.sh")
     
     # Copiar archivos individuales
     for file in "${files_to_copy[@]}"; do
@@ -748,6 +874,8 @@ copy_configuration_files() {
     
     # Hacer scripts ejecutables
     chmod +x "$WORK_DIR/manage.sh"
+    chmod +x "$WORK_DIR/configure_npm.sh"
+    chmod +x "$WORK_DIR/send_email.sh"
     
     # Configurar AdGuard Home automáticamente
     setup_adguard_config
@@ -1069,6 +1197,38 @@ EOF
     log_info "DNS del sistema: $LOCAL_IP (AdGuard Home)"
 }
 
+configure_nginx_proxy_manager() {
+    log_step "Configurando Nginx Proxy Manager..."
+
+    # Esperar a que Nginx Proxy Manager esté disponible
+    log_info "Esperando a que Nginx Proxy Manager esté disponible en http://localhost:81..."
+    local max_wait=180 # 3 minutos
+    local elapsed=0
+    local npm_ready=false
+
+    while [ $elapsed -lt $max_wait ]; do
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:81/ &>/dev/null | grep -q "200"; then
+            npm_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+
+    if [ "$npm_ready" == "true" ]; then
+        log_success "Nginx Proxy Manager está listo."
+        log_info "Ejecutando script de configuración de NPM..."
+        # Ejecutar el script de configuración de NPM
+        chmod +x "$WORK_DIR/configure_npm.sh"
+        "$WORK_DIR/configure_npm.sh"
+        log_success "Configuración de Nginx Proxy Manager completada."
+    else
+        log_error "Nginx Proxy Manager no respondió a tiempo. La configuración automática puede fallar."
+    fi
+    echo ""
+}
+
 # ========================================================================
 # INICIO DE SERVICIOS
 # ========================================================================
@@ -1155,9 +1315,16 @@ show_final_info() {
     echo "   (Crea tu usuario administrador en el primer acceso)"
     echo ""
     echo -e "${GREEN}🚀 Nginx Proxy Manager:${NC}"
-    echo "   URL: http://$LOCAL_IP:81"
-    echo "   Usuario: admin@example.com"
-    echo "   Contraseña: changeme"
+    echo "   URL: https://adguardhome.vpn.local (AdGuard Home)"
+    echo "   URL: https://wgeasy.vpn.local (WG-Easy)"
+    echo "   URL de administración: http://$LOCAL_IP:81"
+    echo "   Usuario: $USER_EMAIL"
+    echo "   Contraseña: [La contraseña maestra que configuraste]"
+    echo "   (La primera vez que accedas a las URLs HTTPS, acepta la advertencia de seguridad)"
+    echo "   ⚠️  Para que los dominios .vpn.local funcionen, añade las siguientes líneas a tu archivo /etc/hosts (o similar) o configura tu DNS local:"
+    echo "      $ADGUARD_IP adguardhome.vpn.local"
+    echo "      $WG_EASY_IP wgeasy.vpn.local"
+    echo ""
     echo ""
     echo -e "${GREEN}🔒 WG-Easy (Interfaz Web WireGuard):${NC}"
     echo "   URL: http://$LOCAL_IP:51821"
@@ -1226,11 +1393,20 @@ main() {
     
     # Configuración final del DNS
     configure_system_dns
+
+    # Configuración de Nginx Proxy Manager
+    configure_nginx_proxy_manager
     
     # Información final
     show_final_info
     
     log_success "¡Instalación completada exitosamente!"
+
+    if [[ -n "$SMTP_SERVER" && -n "$SMTP_PORT" && -n "$SMTP_USERNAME" && -n "$SMTP_PASSWORD" && -n "$USER_EMAIL" ]]; then
+        log_info "Enviando correo de confirmación de instalación..."
+        "$WORK_DIR/send_email.sh" "Instalación de Raspberry Pi VPN Completada" "La instalación de tu servidor Raspberry Pi VPN ha finalizado exitosamente."
+    fi
+}
 }
 
 # Ejecutar función principal
