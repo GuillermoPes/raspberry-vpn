@@ -10,7 +10,7 @@ services:
       - "9000:9000"
       - "8000:8000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Acceso completo para gestión
+      - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     networks:
       - vpn-network
@@ -29,7 +29,7 @@ services:
       - SERVERURL=${SERVERURL:-auto}
       - SERVERPORT=${SERVERPORT:-51820}
       - PEERS=${PEERS:-5}
-      - PEERDNS=${PIHOLE_IP:-10.13.13.100}
+      - PEERDNS=pihole
       - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.14.14.0}
       - ALLOWEDIPS=0.0.0.0/0
     volumes:
@@ -82,10 +82,11 @@ services:
       vpn-network:
         ipv4_address: 10.13.13.100
 
-  # Unbound - DNS resolver recursivo
+  # Unbound - DNS resolver recursivo (compatible ARM64)
   unbound:
-    image: mvance/unbound:latest
+    image: klutchell/unbound:latest
     container_name: unbound
+    platform: linux/arm64
     restart: unless-stopped
     hostname: unbound
     volumes:
@@ -140,4 +141,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.13.13.0/24 
+        - subnet: 10.13.13.0/24
