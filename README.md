@@ -14,6 +14,29 @@ sudo ./setup.sh
 
 **¡Eso es todo!** El script interactivo se encarga de instalar, configurar e iniciar todo automáticamente.
 
+### **🔄 Reinstalación o Actualización**
+
+**Si ya tienes una instalación previa:**
+
+```bash
+# Opción A: Actualizar repositorio existente
+cd raspberry-vpn
+git pull origin main
+sudo ./setup.sh
+
+# Opción B: Instalación limpia (borra directorio existente)
+rm -rf raspberry-vpn
+git clone https://github.com/GuillermoPes/raspberry-vpn.git
+cd raspberry-vpn
+sudo ./setup.sh
+```
+
+**El script detecta automáticamente:**
+- ✅ Instalaciones existentes (te pregunta qué hacer)
+- ✅ Paquetes ya instalados (no los reinstala)
+- ✅ Sistema actualizado (no fuerza actualizaciones innecesarias)
+- ✅ Docker instalado (solo verifica configuración)
+
 👉 **[Ver demostración completa](DEMO-INSTALACION.md)**
 
 ## 📦 Servicios Incluidos
@@ -170,6 +193,41 @@ tar -czf backup-vpn-$(date +%Y%m%d).tar.gz /opt/vpn-server
 1. **IP fija** para la Raspberry Pi
 2. **Puerto 51820/UDP** abierto hacia la Raspberry Pi
 3. **DDNS** (DuckDNS, No-IP) para acceso con dominio
+
+## 🔄 Situaciones Comunes
+
+### **🔁 Ya hice git clone antes**
+```bash
+# El directorio ya existe, 3 opciones:
+
+# 1. Actualizar el existente (recomendado)
+cd raspberry-vpn
+git pull origin main
+sudo ./setup.sh
+
+# 2. Borrar y empezar limpio
+rm -rf raspberry-vpn
+git clone https://github.com/GuillermoPes/raspberry-vpn.git
+cd raspberry-vpn
+sudo ./setup.sh
+
+# 3. Clonar con otro nombre
+git clone https://github.com/GuillermoPes/raspberry-vpn.git vpn-new
+cd vpn-new
+sudo ./setup.sh
+```
+
+### **🔧 Ya tengo una instalación funcionando**
+El script detecta automáticamente instalaciones existentes y te pregunta:
+- **Continuar**: Actualiza configuración sin borrar datos
+- **Backup y reinstalar**: Hace backup automático y reinstala
+- **Cancelar**: Sale sin hacer cambios
+
+### **📦 Sistema ya actualizado**
+El script es inteligente y **NO** fuerza actualizaciones innecesarias:
+- Solo actualiza lista de paquetes si tiene +24h
+- Solo hace `apt upgrade` si hay actualizaciones pendientes
+- Solo instala paquetes que realmente faltan
 
 ## 🚨 Solución de Problemas
 

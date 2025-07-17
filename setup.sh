@@ -111,6 +111,38 @@ check_system() {
     
     log_info "Usuario detectado: $INSTALL_USER"
     
+    # Verificar instalación existente
+    if [ -d "$WORK_DIR" ]; then
+        log_warning "Instalación existente encontrada en $WORK_DIR"
+        echo ""
+        echo "Opciones:"
+        echo "1. Continuar (actualizar configuración)"
+        echo "2. Hacer backup y reinstalar"
+        echo "3. Cancelar instalación"
+        echo ""
+        echo -n "Selecciona una opción (1-3) [1]: "
+        read -r install_choice
+        
+        case "${install_choice:-1}" in
+            1)
+                log_info "Continuando con instalación existente..."
+                ;;
+            2)
+                log_info "Creando backup de instalación existente..."
+                backup_file="$WORK_DIR-backup-$(date +%Y%m%d-%H%M%S)"
+                mv "$WORK_DIR" "$backup_file"
+                log_success "Backup creado: $backup_file"
+                ;;
+            3)
+                log_info "Instalación cancelada"
+                exit 0
+                ;;
+            *)
+                log_info "Opción inválida, continuando..."
+                ;;
+        esac
+    fi
+    
     # Verificar que es una Raspberry Pi
     if [[ ! -f /proc/cpuinfo ]] || ! grep -q "Raspberry Pi" /proc/cpuinfo; then
         log_warning "Este script está optimizado para Raspberry Pi"
@@ -377,53 +409,87 @@ collect_user_input() {
 install_dependencies() {
     log_step "Instalando dependencias del sistema..."
     
-    # Actualizar sistema
-    apt update && apt upgrade -y
+    # Actualizar lista de paquetes solo si es necesario
+    local last_update=$(stat -c %Y /var/lib/apt/lists 2>/dev/null || echo 0)
+    local current_time=$(date +%s)
+    local hours_since_update=$(( (current_time - last_update) / 3600 ))
     
-    # Instalar paquetes necesarios
-    apt install -y \
-        curl \
-        wget \
-        git \
-        vim \
-        htop \
-        ca-certificates \
-        gnupg \
-        lsb-release \
-        iptables-persistent \
-        fail2ban \
-        qrencode
+    if [ $hours_since_update -gt 24 ]; then
+        log_info "Actualizando lista de paquetes (última actualización: hace $hours_since_update horas)..."
+        apt update
+    else
+        log_info "Lista de paquetes actualizada recientemente (hace $hours_since_update horas)"
+    fi
     
-    log_success "Dependencias instaladas"
+    # Verificar si hay actualizaciones pendientes
+    local upgrades=$(apt list --upgradable 2>/dev/null | wc -l)
+    if [ $upgrades -gt 1 ]; then
+        log_info "Hay $((upgrades-1)) actualizaciones disponibles. Actualizando..."
+        apt upgrade -y
+    else
+        log_info "Sistema ya está actualizado"
+    fi
+    
+    # Instalar paquetes necesarios (solo los que faltan)
+    local packages=("curl" "wget" "git" "vim" "htop" "ca-certificates" "gnupg" "lsb-release" "iptables-persistent" "fail2ban" "qrencode")
+    local to_install=()
+    
+    for package in "${packages[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $package "; then
+            to_install+=("$package")
+        fi
+    done
+    
+    if [ ${#to_install[@]} -gt 0 ]; then
+        log_info "Instalando paquetes faltantes: ${to_install[*]}"
+        apt install -y "${to_install[@]}"
+    else
+        log_info "Todos los paquetes necesarios ya están instalados"
+    fi
+    
+    log_success "Dependencias verificadas/instaladas"
 }
 
 install_docker() {
     log_step "Instalando Docker..."
     
-    # Instalar Docker
-    if ! command -v docker &> /dev/null; then
+    # Verificar si Docker está instalado y funcionando
+    if command -v docker &> /dev/null && docker --version &> /dev/null; then
+        log_info "Docker ya está instalado: $(docker --version)"
+        
+        # Verificar si el usuario está en el grupo docker
+        if ! groups "$INSTALL_USER" | grep -q docker; then
+            log_info "Agregando usuario $INSTALL_USER al grupo docker..."
+            usermod -aG docker "$INSTALL_USER"
+        else
+            log_info "Usuario $INSTALL_USER ya está en el grupo docker"
+        fi
+    else
+        log_info "Instalando Docker..."
         curl -fsSL https://get.docker.com -o get-docker.sh
         sh get-docker.sh
         rm get-docker.sh
         
         # Agregar usuario al grupo docker
         if id "$INSTALL_USER" &>/dev/null; then
-            usermod -aG docker $INSTALL_USER
+            usermod -aG docker "$INSTALL_USER"
             log_info "Usuario $INSTALL_USER agregado al grupo docker"
         else
             log_warning "Usuario $INSTALL_USER no encontrado, saltando configuración de grupo docker"
         fi
         
         log_success "Docker instalado"
-    else
-        log_success "Docker ya está instalado"
     fi
 }
 
 install_docker_compose() {
     log_step "Instalando Docker Compose..."
     
-    if ! command -v docker-compose &> /dev/null; then
+    if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
+        log_info "Docker Compose ya está instalado: $(docker-compose --version)"
+    else
+        log_info "Instalando Docker Compose..."
+        
         # Detectar arquitectura
         ARCH=$(uname -m)
         case $ARCH in
@@ -446,8 +512,6 @@ install_docker_compose() {
         chmod +x /usr/local/bin/docker-compose
         
         log_success "Docker Compose instalado"
-    else
-        log_success "Docker Compose ya está instalado"
     fi
 }
 
