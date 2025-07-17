@@ -244,6 +244,15 @@ git pull origin main
 sudo ./setup.sh
 ```
 
+### **Error "cannot stat 'ARCHIVO.md': No such file or directory"**
+```bash
+# Si el script falla copiando archivos:
+git pull origin main  # Actualizar repositorio
+sudo ./setup.sh       # Ejecutar versión actualizada
+
+# El script ahora verifica que los archivos existan antes de copiarlos
+```
+
 ### **WireGuard no conecta**
 ```bash
 # Verificar estado del servicio

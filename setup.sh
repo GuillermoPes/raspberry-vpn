@@ -615,21 +615,40 @@ EOF
 copy_configuration_files() {
     log_step "Copiando archivos de configuración..."
     
-    # Copiar archivos del proyecto
-    cp docker-compose.yml $WORK_DIR/
-    cp -r unbound $WORK_DIR/
-    cp manage.sh $WORK_DIR/
-    cp README.md $WORK_DIR/
-    cp NOTAS-TECNICAS.md $WORK_DIR/
+    # Lista de archivos a copiar (solo los que existen)
+    local files_to_copy=("docker-compose.yml" "README.md" "DEMO-INSTALACION.md" "manage.sh" "config.env.example")
+    
+    # Copiar archivos individuales
+    for file in "${files_to_copy[@]}"; do
+        if [ -f "$file" ]; then
+            cp "$file" "$WORK_DIR/"
+            log_info "Copiado: $file"
+        else
+            log_warning "Archivo no encontrado: $file"
+        fi
+    done
+    
+    # Copiar directorio unbound
+    if [ -d "unbound" ]; then
+        cp -r unbound "$WORK_DIR/"
+        log_info "Copiado: directorio unbound"
+    else
+        log_warning "Directorio unbound no encontrado"
+    fi
     
     # Hacer scripts ejecutables
-    chmod +x $WORK_DIR/manage.sh
+    chmod +x "$WORK_DIR/manage.sh"
     
     # Descargar root hints para Unbound
-    wget -O $WORK_DIR/unbound/root.hints https://www.internic.net/domain/named.cache
+    if [ -d "$WORK_DIR/unbound" ]; then
+        wget -O "$WORK_DIR/unbound/root.hints" https://www.internic.net/domain/named.cache
+        log_info "Descargado: root.hints para Unbound"
+    else
+        log_warning "Directorio unbound no existe, saltando descarga de root.hints"
+    fi
     
     # Configurar permisos
-    chown -R $INSTALL_USER:$INSTALL_USER $WORK_DIR
+    chown -R "$INSTALL_USER:$INSTALL_USER" "$WORK_DIR"
     
     log_success "Archivos copiados"
 }
