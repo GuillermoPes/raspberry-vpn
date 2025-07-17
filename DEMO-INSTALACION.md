@@ -109,6 +109,21 @@ Servicios DDNS recomendados:
 
 Introduce tu dominio (ej: miservidor.duckdns.org): casa.duckdns.org
 
+🦆 DuckDNS detectado!
+
+Dominio DuckDNS: casa
+
+Para habilitar actualización automática de IP necesitas tu token de DuckDNS.
+
+¿Cómo obtener tu token DuckDNS?
+1. Ve a https://www.duckdns.org/
+2. Inicia sesión con tu cuenta
+3. Copia el token que aparece en la parte superior
+
+Introduce tu token de DuckDNS (o 'skip' para omitir): 12345678-1234-1234-1234-123456789012
+[INFO] Verificando token DuckDNS...
+[✅] Token DuckDNS verificado correctamente
+
 [✅] Configuración de red: casa.duckdns.org
 
 Presiona Enter para continuar...
@@ -132,6 +147,11 @@ WireGuard:
   • Número de clientes: 3
   • Servidor: casa.duckdns.org
   • Puerto: 51820/UDP
+
+DuckDNS:
+  • Dominio: casa.duckdns.org
+  • Actualización automática: Habilitada (cada 5 min)
+  • Token: [Configurado]
 
 Otros servicios:
   • Portainer: Puerto 9000
@@ -206,6 +226,13 @@ Presiona Enter para continuar...
 🔒 WireGuard VPN:
    Servidor: casa.duckdns.org:51820
    Clientes configurados: 3
+   IP pública: 88.12.34.56
+
+🦆 DuckDNS:
+   Dominio: casa.duckdns.org
+   Actualización automática: ✅ Habilitada
+   Verificación: Cada 5 minutos
+   Logs: /opt/vpn-server/duckdns.log
 
 📱 Para obtener códigos QR de tus clientes VPN:
    cd /opt/vpn-server && ./manage.sh

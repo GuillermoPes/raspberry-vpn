@@ -35,6 +35,9 @@ WIREGUARD_PEERS="5"
 PUBLIC_IP=""
 DOMAIN_NAME=""
 USE_DOMAIN="false"
+USE_DUCKDNS="false"
+DUCKDNS_DOMAIN=""
+DUCKDNS_TOKEN=""
 
 # ========================================================================
 # FUNCIONES AUXILIARES
@@ -338,6 +341,11 @@ collect_network_config() {
                 echo -n "Introduce tu dominio (ej: miservidor.duckdns.org): "
                 read -r DOMAIN_NAME
                 USE_DOMAIN="true"
+                
+                # Detectar DuckDNS y pedir token automáticamente
+                if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                    configure_duckdns_auto_update
+                fi
                 ;;
             3)
                 echo -n "Introduce IP pública o dominio: "
@@ -346,6 +354,11 @@ collect_network_config() {
                     USE_DOMAIN="false"
                 else
                     USE_DOMAIN="true"
+                    
+                    # Detectar DuckDNS y pedir token automáticamente
+                    if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                        configure_duckdns_auto_update
+                    fi
                 fi
                 ;;
             *)
@@ -396,6 +409,14 @@ show_configuration_summary() {
     echo "  • Servidor: $DOMAIN_NAME"
     echo "  • Puerto: 51820/UDP"
     echo ""
+    
+    if [[ "$USE_DUCKDNS" == "true" ]]; then
+        echo -e "${GREEN}DuckDNS:${NC}"
+        echo "  • Dominio: $DUCKDNS_DOMAIN.duckdns.org"
+        echo "  • Actualización automática: Habilitada (cada 5 min)"
+        echo "  • Token: [Configurado]"
+        echo ""
+    fi
     echo -e "${GREEN}Otros servicios:${NC}"
     echo "  • Portainer: Puerto 9000"
     echo "  • Nginx Proxy Manager: Puerto 81"
@@ -413,6 +434,51 @@ show_configuration_summary() {
     log_success "Configuración confirmada"
     echo ""
     press_enter
+}
+
+configure_duckdns_auto_update() {
+    echo ""
+    echo -e "${GREEN}🦆 DuckDNS detectado!${NC}"
+    echo ""
+    
+    # Extraer subdominio
+    DUCKDNS_DOMAIN=$(echo "$DOMAIN_NAME" | cut -d'.' -f1)
+    echo "Dominio DuckDNS: $DUCKDNS_DOMAIN"
+    echo ""
+    
+    echo "Para habilitar actualización automática de IP necesitas tu token de DuckDNS."
+    echo ""
+    echo -e "${YELLOW}¿Cómo obtener tu token DuckDNS?${NC}"
+    echo "1. Ve a https://www.duckdns.org/"
+    echo "2. Inicia sesión con tu cuenta"
+    echo "3. Copia el token que aparece en la parte superior"
+    echo ""
+    
+    while true; do
+        echo -n "Introduce tu token de DuckDNS (o 'skip' para omitir): "
+        read -r DUCKDNS_TOKEN
+        
+        if [[ "$DUCKDNS_TOKEN" == "skip" ]]; then
+            log_warning "Actualización automática de DuckDNS omitida"
+            USE_DUCKDNS="false"
+            break
+        elif [[ ${#DUCKDNS_TOKEN} -eq 36 ]]; then
+            log_info "Verificando token DuckDNS..."
+            
+            # Verificar token haciendo una actualización de prueba
+            local test_result=$(curl -s "https://www.duckdns.org/update?domains=$DUCKDNS_DOMAIN&token=$DUCKDNS_TOKEN&ip=")
+            
+            if [[ "$test_result" == "OK" ]]; then
+                log_success "Token DuckDNS verificado correctamente"
+                USE_DUCKDNS="true"
+                break
+            else
+                log_error "Token DuckDNS inválido. Inténtalo de nuevo."
+            fi
+        else
+            log_error "Token inválido. Debe tener 36 caracteres."
+        fi
+    done
 }
 
 collect_user_input() {
@@ -613,6 +679,11 @@ COMPOSE_PROJECT_NAME=vpn-server
 SERVERURL=$DOMAIN_NAME
 PUBLIC_IP=$PUBLIC_IP
 
+# Configuración de DuckDNS
+USE_DUCKDNS=$USE_DUCKDNS
+DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
+DUCKDNS_TOKEN=$DUCKDNS_TOKEN
+
 # Configuración de Pi-hole
 PIHOLE_PASSWORD=$PIHOLE_PASSWORD
 PIHOLE_DNS=10.13.13.3#5335
@@ -661,6 +732,11 @@ copy_configuration_files() {
     # Hacer scripts ejecutables
     chmod +x "$WORK_DIR/manage.sh"
     
+    # Configurar DuckDNS si está habilitado
+    if [[ "$USE_DUCKDNS" == "true" ]]; then
+        setup_duckdns_updater
+    fi
+    
     # Descargar root hints para Unbound
     if [ -d "$WORK_DIR/unbound" ]; then
         wget -O "$WORK_DIR/unbound/root.hints" https://www.internic.net/domain/named.cache
@@ -673,6 +749,91 @@ copy_configuration_files() {
     chown -R "$INSTALL_USER:$INSTALL_USER" "$WORK_DIR"
     
     log_success "Archivos copiados"
+}
+
+setup_duckdns_updater() {
+    log_info "Configurando actualizador automático de DuckDNS..."
+    
+    # Crear script de actualización DuckDNS
+    cat > "$WORK_DIR/duckdns-updater.sh" << 'EOF'
+#!/bin/bash
+
+# Script de actualización automática de DuckDNS
+# Se ejecuta cada 5 minutos para verificar cambios de IP
+
+# Cargar configuración
+source /opt/vpn-server/.env
+
+# Archivos de estado
+IP_FILE="/opt/vpn-server/.current_ip"
+LOG_FILE="/opt/vpn-server/duckdns.log"
+
+# Función de log
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+}
+
+# Obtener IP pública actual
+CURRENT_IP=$(curl -s --max-time 10 ifconfig.me 2>/dev/null || curl -s --max-time 10 ipinfo.io/ip 2>/dev/null)
+
+if [[ -z "$CURRENT_IP" ]]; then
+    log_message "ERROR: No se pudo obtener IP pública"
+    exit 1
+fi
+
+# Leer IP anterior si existe
+if [[ -f "$IP_FILE" ]]; then
+    PREVIOUS_IP=$(cat "$IP_FILE")
+else
+    PREVIOUS_IP=""
+fi
+
+# Verificar si la IP cambió
+if [[ "$CURRENT_IP" != "$PREVIOUS_IP" ]]; then
+    log_message "Cambio de IP detectado: $PREVIOUS_IP -> $CURRENT_IP"
+    
+    # Actualizar DuckDNS
+    RESPONSE=$(curl -s "https://www.duckdns.org/update?domains=$DUCKDNS_DOMAIN&token=$DUCKDNS_TOKEN&ip=$CURRENT_IP")
+    
+    if [[ "$RESPONSE" == "OK" ]]; then
+        log_message "DuckDNS actualizado correctamente: $DUCKDNS_DOMAIN.duckdns.org -> $CURRENT_IP"
+        echo "$CURRENT_IP" > "$IP_FILE"
+        
+        # Actualizar configuración de WireGuard si es necesario
+        if docker ps | grep -q wireguard; then
+            log_message "Reiniciando WireGuard para aplicar nueva IP..."
+            cd /opt/vpn-server
+            docker-compose restart wireguard
+        fi
+    else
+        log_message "ERROR: Falló actualización de DuckDNS: $RESPONSE"
+    fi
+else
+    # IP no cambió, solo log cada hora (cada 12 ejecuciones de 5 min)
+    MINUTE=$(date +%M)
+    if [[ "$MINUTE" == "00" ]]; then
+        log_message "IP sin cambios: $CURRENT_IP"
+    fi
+fi
+EOF
+
+    # Hacer el script ejecutable
+    chmod +x "$WORK_DIR/duckdns-updater.sh"
+    
+    # Configurar cron job para ejecutar cada 5 minutos
+    log_info "Configurando cron job para DuckDNS..."
+    
+    # Crear entrada de cron
+    CRON_JOB="*/5 * * * * /opt/vpn-server/duckdns-updater.sh >/dev/null 2>&1"
+    
+    # Agregar a cron del usuario
+    (crontab -u "$INSTALL_USER" -l 2>/dev/null; echo "$CRON_JOB") | crontab -u "$INSTALL_USER" -
+    
+    # Ejecutar una vez para configurar IP inicial
+    log_info "Configurando IP inicial en DuckDNS..."
+    sudo -u "$INSTALL_USER" "$WORK_DIR/duckdns-updater.sh"
+    
+    log_success "DuckDNS configurado - Verificación cada 5 minutos"
 }
 
 # ========================================================================
@@ -769,6 +930,15 @@ show_final_info() {
     echo "   Clientes configurados: $WIREGUARD_PEERS"
     echo "   IP pública: $PUBLIC_IP"
     echo ""
+    
+    if [[ "$USE_DUCKDNS" == "true" ]]; then
+        echo -e "${GREEN}🦆 DuckDNS:${NC}"
+        echo "   Dominio: $DUCKDNS_DOMAIN.duckdns.org"
+        echo "   Actualización automática: ✅ Habilitada"
+        echo "   Verificación: Cada 5 minutos"
+        echo "   Logs: /opt/vpn-server/duckdns.log"
+        echo ""
+    fi
     
     echo -e "${YELLOW}📱 Para obtener códigos QR de tus clientes VPN:${NC}"
     echo "   cd $WORK_DIR && ./manage.sh"

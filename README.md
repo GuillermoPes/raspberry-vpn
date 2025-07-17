@@ -89,6 +89,7 @@ sudo ./setup.sh
    - Zona horaria (autodetectada)
    - Número de clientes VPN (1-10)
    - IP pública o dominio (autodetectado)
+   - **🦆 DuckDNS automático**: Si usas DuckDNS, pide token y configura actualización automática
 
 3. **🔧 Instalación Automática**
    - Docker y Docker Compose
@@ -146,6 +147,42 @@ Los archivos de configuración se generan automáticamente en:
 ### **Aplicaciones Cliente**
 - **Android/iOS**: App oficial WireGuard
 - **Windows/Mac/Linux**: Cliente oficial WireGuard
+
+## 🦆 DuckDNS - Actualización Automática de IP
+
+### **¿Qué es DuckDNS?**
+**DuckDNS** es un servicio gratuito que te permite usar un dominio fijo aunque tu IP cambie.
+
+### **Configuración Automática**
+El script **detecta automáticamente** si usas DuckDNS:
+1. Al introducir tu dominio (ej: `miservidor.duckdns.org`)
+2. **Automáticamente** te pide el token de DuckDNS
+3. Configura actualización automática **cada 5 minutos**
+4. Si cambia tu IP, **actualiza DuckDNS y reinicia WireGuard** automáticamente
+
+### **¿Cómo obtener tu token DuckDNS?**
+1. Ve a [duckdns.org](https://www.duckdns.org/)
+2. Inicia sesión (GitHub, Google, etc.)
+3. Copia el token que aparece en la parte superior
+
+### **Funcionalidades**
+- ✅ **Verificación cada 5 minutos** de cambios de IP
+- ✅ **Actualización automática** de DuckDNS
+- ✅ **Reinicio automático** de WireGuard si cambia IP
+- ✅ **Logs detallados** en `/opt/vpn-server/duckdns.log`
+- ✅ **Verificación de token** durante la instalación
+
+### **Verificar que funciona**
+```bash
+# Ver logs de DuckDNS
+tail -f /opt/vpn-server/duckdns.log
+
+# Ver cron job configurado
+crontab -l | grep duckdns
+
+# Ejecutar manualmente
+/opt/vpn-server/duckdns-updater.sh
+```
 
 ## 📊 Gestión y Mantenimiento
 
