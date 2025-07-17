@@ -231,6 +231,19 @@ El script es inteligente y **NO** fuerza actualizaciones innecesarias:
 
 ## 🚨 Solución de Problemas
 
+### **Script se cuelga con "ufw: command not found"**
+```bash
+# Solución inmediata:
+sudo apt update && sudo apt install ufw
+
+# Luego continúa con:
+sudo ./setup.sh
+
+# O reinstala desde el principio:
+git pull origin main
+sudo ./setup.sh
+```
+
 ### **WireGuard no conecta**
 ```bash
 # Verificar estado del servicio

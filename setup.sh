@@ -154,11 +154,11 @@ check_system() {
         fi
     fi
     
-    # Verificar dependencias básicas
-    local deps=("curl" "wget" "git")
-    for dep in "${deps[@]}"; do
+    # Verificar dependencias básicas críticas
+    local critical_deps=("curl" "wget" "git" "ufw")
+    for dep in "${critical_deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
-            log_info "Instalando $dep..."
+            log_info "Instalando dependencia crítica: $dep..."
             apt update -qq
             apt install -y "$dep"
         fi
@@ -431,7 +431,7 @@ install_dependencies() {
     fi
     
     # Instalar paquetes necesarios (solo los que faltan)
-    local packages=("curl" "wget" "git" "vim" "htop" "ca-certificates" "gnupg" "lsb-release" "iptables-persistent" "fail2ban" "qrencode")
+    local packages=("curl" "wget" "git" "vim" "htop" "ca-certificates" "gnupg" "lsb-release" "iptables-persistent" "fail2ban" "qrencode" "ufw")
     local to_install=()
     
     for package in "${packages[@]}"; do
@@ -517,6 +517,13 @@ install_docker_compose() {
 
 configure_firewall() {
     log_step "Configurando firewall..."
+    
+    # Verificar que UFW esté disponible
+    if ! command -v ufw &> /dev/null; then
+        log_error "UFW no está instalado. Instalando..."
+        apt update -qq
+        apt install -y ufw
+    fi
     
     # Configurar UFW
     ufw --force enable
