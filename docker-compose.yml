@@ -62,7 +62,7 @@ services:
     environment:
       TZ: '${TZ:-Europe/Madrid}'
       WEBPASSWORD: '${PIHOLE_PASSWORD}'
-      PIHOLE_DNS_: '${PIHOLE_DNS:-10.13.13.3#5335}'
+      PIHOLE_DNS_: 'unbound#53'
       DNSMASQ_LISTENING: 'all'
       VIRTUAL_HOST: pihole.local
       PROXY_LOCATION: pihole
