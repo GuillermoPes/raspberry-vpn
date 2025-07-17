@@ -376,6 +376,11 @@ collect_network_config() {
             USE_DOMAIN="false"
         else
             USE_DOMAIN="true"
+            
+            # Detectar DuckDNS y pedir token automáticamente
+            if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                configure_duckdns_auto_update
+            fi
         fi
     fi
     
@@ -632,6 +637,61 @@ configure_firewall() {
     log_success "Firewall configurado"
 }
 
+configure_dns_resolution() {
+    log_step "Configurando resolución DNS..."
+    
+    # Verificar si systemd-resolved está ocupando el puerto 53
+    if systemctl is-active --quiet systemd-resolved; then
+        log_info "Configurando systemd-resolved para liberar puerto 53..."
+        
+        # Crear configuración personalizada para systemd-resolved
+        cat > /etc/systemd/resolved.conf << EOF
+[Resolve]
+DNS=1.1.1.1 8.8.8.8
+FallbackDNS=1.0.0.1 8.8.4.4
+DNSStubListener=no
+DNSStubListenerExtra=127.0.0.1:5353
+Cache=yes
+DNSSEC=no
+ReadEtcHosts=yes
+EOF
+        
+        # Reiniciar systemd-resolved para aplicar cambios
+        systemctl restart systemd-resolved
+        
+        # Configurar resolv.conf para que use Pi-hole cuando esté disponible
+        rm -f /etc/resolv.conf
+        ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        
+        log_success "systemd-resolved configurado - Puerto 53 liberado"
+    else
+        log_info "systemd-resolved no está activo"
+    fi
+    
+    # Verificar que el puerto 53 esté libre
+    if lsof -i :53 >/dev/null 2>&1; then
+        log_warning "Puerto 53 aún ocupado, intentando liberarlo..."
+        
+        # Intentar parar otros servicios DNS
+        for service in dnsmasq bind9 unbound; do
+            if systemctl is-active --quiet $service; then
+                log_info "Parando servicio $service..."
+                systemctl stop $service
+                systemctl disable $service
+            fi
+        done
+        
+        # Verificar nuevamente
+        if lsof -i :53 >/dev/null 2>&1; then
+            log_error "No se pudo liberar el puerto 53. Verifica manualmente:"
+            log_error "sudo lsof -i :53"
+            exit 1
+        fi
+    fi
+    
+    log_success "Puerto 53 disponible para Pi-hole"
+}
+
 configure_system() {
     log_step "Configurando sistema..."
     
@@ -836,6 +896,43 @@ EOF
     log_success "DuckDNS configurado - Verificación cada 5 minutos"
 }
 
+configure_system_dns() {
+    log_step "Configurando DNS del sistema para usar Pi-hole..."
+    
+    # Esperar a que Pi-hole esté listo
+    local max_wait=60
+    local elapsed=0
+    
+    while [ $elapsed -lt $max_wait ]; do
+        if docker exec pihole pihole status &>/dev/null; then
+            break
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    
+    # Detectar IP local
+    LOCAL_IP=$(hostname -I | awk '{print $1}')
+    
+    # Configurar el sistema para usar Pi-hole como DNS
+    cat > /etc/systemd/resolved.conf << EOF
+[Resolve]
+DNS=$LOCAL_IP
+FallbackDNS=1.1.1.1 8.8.8.8
+DNSStubListener=no
+DNSStubListenerExtra=127.0.0.1:5353
+Cache=no
+DNSSEC=no
+ReadEtcHosts=yes
+EOF
+    
+    # Reiniciar systemd-resolved
+    systemctl restart systemd-resolved
+    
+    log_success "Sistema configurado para usar Pi-hole como DNS"
+    log_info "DNS del sistema: $LOCAL_IP (Pi-hole)"
+}
+
 # ========================================================================
 # INICIO DE SERVICIOS
 # ========================================================================
@@ -977,6 +1074,7 @@ main() {
     install_docker
     install_docker_compose
     configure_firewall
+    configure_dns_resolution
     configure_system
     create_directories
     
@@ -986,6 +1084,9 @@ main() {
     
     # Inicio de servicios
     start_services
+    
+    # Configuración final del DNS
+    configure_system_dns
     
     # Información final
     show_final_info
