@@ -84,7 +84,7 @@ services:
 
   # Unbound - DNS resolver recursivo
   unbound:
-    image: madnuttah/unbound:latest
+    image: mvance/unbound:latest
     container_name: unbound
     restart: unless-stopped
     hostname: unbound

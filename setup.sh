@@ -343,12 +343,8 @@ collect_network_config() {
                 USE_DOMAIN="true"
                 
                 # Detectar DuckDNS y pedir token automáticamente
-                echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
-                if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
-                    echo "DEBUG: DuckDNS detectado, llamando función..."
+                if [[ "$DOMAIN_NAME" =~ duckdns\.org$ ]]; then
                     configure_duckdns_auto_update
-                else
-                    echo "DEBUG: DuckDNS NO detectado"
                 fi
                 ;;
             3)
@@ -360,12 +356,8 @@ collect_network_config() {
                     USE_DOMAIN="true"
                     
                     # Detectar DuckDNS y pedir token automáticamente
-                    echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
-                    if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
-                        echo "DEBUG: DuckDNS detectado, llamando función..."
+                    if [[ "$DOMAIN_NAME" =~ duckdns\.org$ ]]; then
                         configure_duckdns_auto_update
-                    else
-                        echo "DEBUG: DuckDNS NO detectado"
                     fi
                 fi
                 ;;
@@ -651,94 +643,43 @@ configure_firewall() {
 }
 
 configure_dns_resolution() {
-    log_step "Configurando resolución DNS..."
-    
-    # Debug: Verificar estado actual del puerto 53
-    echo "DEBUG: Verificando puerto 53..."
-    if lsof -i :53 >/dev/null 2>&1; then
-        echo "DEBUG: Puerto 53 ocupado por:"
-        lsof -i :53
-    else
-        echo "DEBUG: Puerto 53 libre"
+    log_step "Configurando resolución DNS para Pi-hole..."
+
+    # Herramienta para verificar puertos: lsof. Si no está, se instala.
+    if ! command -v lsof &> /dev/null; then
+        log_info "Instalando 'lsof' para verificar puertos..."
+        apt update -qq && apt install -y lsof
     fi
-    
-    # Verificar si systemd-resolved está ocupando el puerto 53
-    if systemctl is-active --quiet systemd-resolved; then
-        log_info "Configurando systemd-resolved para liberar puerto 53..."
-        echo "DEBUG: systemd-resolved está activo"
+
+    # Verificar si systemd-resolved está usando el puerto 53
+    if lsof -i :53 | grep -q systemd-resolved; then
+        log_warning "El servicio 'systemd-resolved' está usando el puerto 53."
+        log_info "Deteniendo y deshabilitando 'systemd-resolved' para liberar el puerto..."
         
-        # Crear configuración personalizada para systemd-resolved
-        cat > /etc/systemd/resolved.conf << EOF
-[Resolve]
-DNS=1.1.1.1 8.8.8.8
-FallbackDNS=1.0.0.1 8.8.4.4
-DNSStubListener=no
-DNSStubListenerExtra=127.0.0.1:5353
-Cache=yes
-DNSSEC=no
-ReadEtcHosts=yes
-EOF
+        systemctl stop systemd-resolved
+        systemctl disable systemd-resolved
         
-        # Reiniciar systemd-resolved para aplicar cambios
-        echo "DEBUG: Reiniciando systemd-resolved..."
-        systemctl restart systemd-resolved
-        sleep 2
-        
-        # Configurar resolv.conf para que use Pi-hole cuando esté disponible
-        rm -f /etc/resolv.conf
-        ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
-        
-        # Verificar que el puerto 53 ahora esté libre
-        echo "DEBUG: Verificando puerto 53 después de configurar systemd-resolved..."
-        if lsof -i :53 >/dev/null 2>&1; then
-            echo "DEBUG: Puerto 53 AÚN ocupado por:"
-            lsof -i :53
-        else
-            echo "DEBUG: Puerto 53 ahora libre"
+        # Eliminar el enlace simbólico de resolv.conf que crea systemd-resolved
+        if [ -L /etc/resolv.conf ]; then
+            rm /etc/resolv.conf
         fi
+        # Crear un resolv.conf temporal para que el sistema no se quede sin DNS
+        echo "nameserver 1.1.1.1" > /etc/resolv.conf
         
-        log_success "systemd-resolved configurado - Puerto 53 liberado"
+        log_success "Servicio 'systemd-resolved' deshabilitado y puerto 53 liberado."
     else
-        log_info "systemd-resolved no está activo"
+        log_info "El puerto 53 parece estar libre y disponible para Pi-hole."
     fi
-    
-    # Verificar que el puerto 53 esté libre
-    if lsof -i :53 >/dev/null 2>&1; then
-        log_warning "Puerto 53 aún ocupado, intentando liberarlo..."
-        
-        # Intentar parar otros servicios DNS
-        for service in dnsmasq bind9 unbound; do
-            if systemctl is-active --quiet $service; then
-                log_info "Parando servicio $service..."
-                systemctl stop $service
-                systemctl disable $service
-            fi
-        done
-        
-        # Verificar nuevamente
-        if lsof -i :53 >/dev/null 2>&1; then
-            echo "DEBUG: Puerto 53 sigue ocupado después de parar servicios:"
-            lsof -i :53
-            log_error "No se pudo liberar el puerto 53. Verifica manualmente:"
-            log_error "sudo lsof -i :53"
-            exit 1
-        else
-            echo "DEBUG: Puerto 53 finalmente libre"
-        fi
-    fi
-    
-    # Verificación final
-    echo "DEBUG: Verificación final del puerto 53..."
-    if lsof -i :53 >/dev/null 2>&1; then
-        echo "DEBUG: PROBLEMA: Puerto 53 sigue ocupado:"
-        lsof -i :53
-        log_error "El puerto 53 sigue ocupado. Esto impedirá que Pi-hole funcione."
+
+    # Comprobación final para otros posibles servicios
+    if lsof -i :53 >/dev/null 2>&1 && ! docker ps | grep -q pihole; then
+        local service_name=$(lsof -i :53 -t -sTCP:LISTEN)
+        log_error "El puerto 53 sigue ocupado por otro proceso (PID: $service_name)."
+        log_error "Por favor, detén ese servicio manualmente antes de continuar."
         exit 1
-    else
-        echo "DEBUG: ÉXITO: Puerto 53 completamente libre"
     fi
     
-    log_success "Puerto 53 disponible para Pi-hole"
+    log_success "Resolución DNS configurada correctamente para la instalación."
 }
 
 configure_system() {
