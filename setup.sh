@@ -1407,7 +1407,6 @@ main() {
         "$WORK_DIR/send_email.sh" "Instalación de Raspberry Pi VPN Completada" "La instalación de tu servidor Raspberry Pi VPN ha finalizado exitosamente."
     fi
 }
-}
 
 # Ejecutar función principal
 main "$@" 
