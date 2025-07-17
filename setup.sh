@@ -343,8 +343,12 @@ collect_network_config() {
                 USE_DOMAIN="true"
                 
                 # Detectar DuckDNS y pedir token automáticamente
+                echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
                 if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                    echo "DEBUG: DuckDNS detectado, llamando función..."
                     configure_duckdns_auto_update
+                else
+                    echo "DEBUG: DuckDNS NO detectado"
                 fi
                 ;;
             3)
@@ -356,8 +360,12 @@ collect_network_config() {
                     USE_DOMAIN="true"
                     
                     # Detectar DuckDNS y pedir token automáticamente
+                    echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
                     if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                        echo "DEBUG: DuckDNS detectado, llamando función..."
                         configure_duckdns_auto_update
+                    else
+                        echo "DEBUG: DuckDNS NO detectado"
                     fi
                 fi
                 ;;
@@ -378,8 +386,12 @@ collect_network_config() {
             USE_DOMAIN="true"
             
             # Detectar DuckDNS y pedir token automáticamente
+            echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
             if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                echo "DEBUG: DuckDNS detectado, llamando función..."
                 configure_duckdns_auto_update
+            else
+                echo "DEBUG: DuckDNS NO detectado"
             fi
         fi
     fi
@@ -442,6 +454,7 @@ show_configuration_summary() {
 }
 
 configure_duckdns_auto_update() {
+    echo "DEBUG: Ejecutando función configure_duckdns_auto_update()"
     echo ""
     echo -e "${GREEN}🦆 DuckDNS detectado!${NC}"
     echo ""
