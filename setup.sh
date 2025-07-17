@@ -653,9 +653,19 @@ configure_firewall() {
 configure_dns_resolution() {
     log_step "Configurando resolución DNS..."
     
+    # Debug: Verificar estado actual del puerto 53
+    echo "DEBUG: Verificando puerto 53..."
+    if lsof -i :53 >/dev/null 2>&1; then
+        echo "DEBUG: Puerto 53 ocupado por:"
+        lsof -i :53
+    else
+        echo "DEBUG: Puerto 53 libre"
+    fi
+    
     # Verificar si systemd-resolved está ocupando el puerto 53
     if systemctl is-active --quiet systemd-resolved; then
         log_info "Configurando systemd-resolved para liberar puerto 53..."
+        echo "DEBUG: systemd-resolved está activo"
         
         # Crear configuración personalizada para systemd-resolved
         cat > /etc/systemd/resolved.conf << EOF
@@ -670,11 +680,22 @@ ReadEtcHosts=yes
 EOF
         
         # Reiniciar systemd-resolved para aplicar cambios
+        echo "DEBUG: Reiniciando systemd-resolved..."
         systemctl restart systemd-resolved
+        sleep 2
         
         # Configurar resolv.conf para que use Pi-hole cuando esté disponible
         rm -f /etc/resolv.conf
         ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        
+        # Verificar que el puerto 53 ahora esté libre
+        echo "DEBUG: Verificando puerto 53 después de configurar systemd-resolved..."
+        if lsof -i :53 >/dev/null 2>&1; then
+            echo "DEBUG: Puerto 53 AÚN ocupado por:"
+            lsof -i :53
+        else
+            echo "DEBUG: Puerto 53 ahora libre"
+        fi
         
         log_success "systemd-resolved configurado - Puerto 53 liberado"
     else
@@ -696,10 +717,25 @@ EOF
         
         # Verificar nuevamente
         if lsof -i :53 >/dev/null 2>&1; then
+            echo "DEBUG: Puerto 53 sigue ocupado después de parar servicios:"
+            lsof -i :53
             log_error "No se pudo liberar el puerto 53. Verifica manualmente:"
             log_error "sudo lsof -i :53"
             exit 1
+        else
+            echo "DEBUG: Puerto 53 finalmente libre"
         fi
+    fi
+    
+    # Verificación final
+    echo "DEBUG: Verificación final del puerto 53..."
+    if lsof -i :53 >/dev/null 2>&1; then
+        echo "DEBUG: PROBLEMA: Puerto 53 sigue ocupado:"
+        lsof -i :53
+        log_error "El puerto 53 sigue ocupado. Esto impedirá que Pi-hole funcione."
+        exit 1
+    else
+        echo "DEBUG: ÉXITO: Puerto 53 completamente libre"
     fi
     
     log_success "Puerto 53 disponible para Pi-hole"
