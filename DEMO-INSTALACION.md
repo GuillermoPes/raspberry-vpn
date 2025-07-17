@@ -25,8 +25,7 @@ sudo ./setup.sh
 ║                                                                      ║
 ║  📦 Servicios incluidos:                                             ║
 ║  • WireGuard VPN Server                                              ║
-║  • Pi-hole (Bloqueo de anuncios)                                     ║
-║  • Unbound (DNS recursivo)                                           ║
+║  ║  • AdGuard Home (Bloqueo de anuncios avanzado)                       ║
 ║  • Portainer (Gestión Docker)                                        ║
 ║  • Nginx Proxy Manager                                               ║
 ║  • Watchtower (Actualizaciones automáticas)                          ║
@@ -46,16 +45,23 @@ Te haré algunas preguntas para personalizar la instalación.
 Presiona Enter para continuar...
 ```
 
-### **Configuración de Pi-hole**
+### **Configuración de AdGuard Home**
 ```
-📋 Configuración de Pi-hole
+📋 Configuración de AdGuard Home
 
-Pi-hole bloqueará anuncios y será tu servidor DNS interno.
+AdGuard Home bloqueará anuncios y será tu servidor DNS completo.
 
-Introduce una contraseña segura para Pi-hole: ********
+Características de AdGuard Home:
+• Bloqueo de anuncios avanzado
+• DNS-over-HTTPS y DNS-over-TLS nativos
+• Interfaz web moderna y potente
+• Estadísticas detalladas
+• Configuración automática
+
+Introduce una contraseña segura para AdGuard Home: ********
 Confirma la contraseña: ********
 
-[✅] Contraseña de Pi-hole configurada
+[✅] Contraseña de AdGuard Home configurada
 
 Presiona Enter para continuar...
 ```
@@ -139,9 +145,10 @@ Sistema:
   • Zona horaria: Europe/Madrid
   • Directorio de instalación: /opt/vpn-server
 
-Pi-hole:
+AdGuard Home:
   • Contraseña: [Configurada]
-  • Puerto web: 8080
+  • Puerto web: 8080 (HTTP) / 8443 (HTTPS)
+  • Puerto inicial: 3000 (primer acceso)
 
 WireGuard:
   • Número de clientes: 3
@@ -156,7 +163,7 @@ DuckDNS:
 Otros servicios:
   • Portainer: Puerto 9000
   • Nginx Proxy Manager: Puerto 81
-  • Unbound DNS: Puerto 5335
+  • AdGuard Home: Puerto 8080/8443 (web), Puerto 3000 (inicial)
 
 ¿Es correcta esta configuración? (Y/n): Y
 
@@ -209,9 +216,10 @@ Presiona Enter para continuar...
 
 📋 Información de acceso:
 
-🌐 Pi-hole (Bloqueo de anuncios):
-   URL: http://192.168.1.100:8080/admin
-   Usuario: admin
+🛡️  AdGuard Home (Bloqueo de anuncios):
+   URL inicial: http://192.168.1.100:3000 (primera configuración)
+   URL final: http://192.168.1.100:8080 (después de configurar)
+   Usuario: [Configuras en el primer acceso]
    Contraseña: [La que configuraste]
 
 🐳 Portainer (Gestión Docker):
@@ -268,7 +276,7 @@ cd /opt/vpn-server
 4. 🔧 Actualizar servicios
 5. 📱 Mostrar códigos QR WireGuard
 6. 💾 Crear backup
-7. 🔒 Cambiar contraseña Pi-hole
+7. 🔒 Cambiar contraseña AdGuard Home
 8. 🌐 Mostrar IP pública
 9. 🚀 Información del sistema
 10. 🛑 Detener servicios

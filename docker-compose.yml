@@ -29,7 +29,7 @@ services:
       - SERVERURL=${SERVERURL:-auto}
       - SERVERPORT=${SERVERPORT:-51820}
       - PEERS=${PEERS:-5}
-      - PEERDNS=pihole
+      - PEERDNS=10.13.13.100
       - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.14.14.0}
       - ALLOWEDIPS=0.0.0.0/0
     volumes:
@@ -50,30 +50,29 @@ services:
       vpn-network:
         ipv4_address: 10.13.13.2
 
-  # Pi-hole - Bloqueo de anuncios y DNS
-  pihole:
-    image: pihole/pihole:latest
-    container_name: pihole
+  # AdGuard Home - Bloqueo de anuncios y DNS completo
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "67:67/udp"
-      - "8080:80/tcp"
+      - "67:67/udp"  # DHCP
+      - "68:68/tcp"  # DHCP
+      - "68:68/udp"  # DHCP
+      - "8080:80/tcp"  # Web interface
+      - "8443:443/tcp"  # Web interface HTTPS
+      - "3000:3000/tcp"  # Initial setup
     environment:
-      TZ: '${TZ:-Europe/Madrid}'
-      WEBPASSWORD: '${PIHOLE_PASSWORD}'
-      PIHOLE_DNS_: 'unbound#53'
-      DNSMASQ_LISTENING: 'all'
-      VIRTUAL_HOST: pihole.local
-      PROXY_LOCATION: pihole
+      - TZ=${TZ:-Europe/Madrid}
     volumes:
-      - './pihole/etc-pihole:/etc/pihole'
-      - './pihole/etc-dnsmasq.d:/etc/dnsmasq.d'
+      - ./adguardhome/work:/opt/adguardhome/work
+      - ./adguardhome/conf:/opt/adguardhome/conf
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pihole status || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -81,28 +80,6 @@ services:
     networks:
       vpn-network:
         ipv4_address: 10.13.13.100
-
-  # Unbound - DNS resolver recursivo (compatible ARM64)
-  unbound:
-    image: klutchell/unbound:latest
-    container_name: unbound
-    platform: linux/arm64
-    restart: unless-stopped
-    hostname: unbound
-    volumes:
-      - ./unbound:/opt/unbound/etc/unbound/
-    ports:
-      - "5335:53/tcp"
-      - "5335:53/udp"
-    healthcheck:
-      test: ["CMD-SHELL", "nslookup google.com 127.0.0.1 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      vpn-network:
-        ipv4_address: 10.13.13.3
 
   # Nginx Proxy Manager
   nginx-proxy-manager:

@@ -29,7 +29,7 @@ INSTALL_USER=$(logname 2>/dev/null || echo $SUDO_USER)
 PROJECT_NAME="raspberry-vpn"
 
 # Variables globales para configuración
-PIHOLE_PASSWORD=""
+ADGUARD_PASSWORD=""
 TIMEZONE="Europe/Madrid"
 WIREGUARD_PEERS="5"
 PUBLIC_IP=""
@@ -52,7 +52,7 @@ print_banner() {
     echo "║                                                                      ║"
     echo "║  📦 Servicios incluidos:                                             ║"
     echo "║  • WireGuard VPN Server                                              ║"
-    echo "║  • Pi-hole (Bloqueo de anuncios)                                     ║"
+    echo "║  • AdGuard Home (Bloqueo de anuncios avanzado)                       ║"
     echo "║  • Unbound (DNS recursivo)                                           ║"
     echo "║  • Portainer (Gestión Docker)                                        ║"
     echo "║  • Nginx Proxy Manager                                               ║"
@@ -224,23 +224,31 @@ welcome_message() {
     echo "• Asegúrate de tener abierto el puerto 51820/UDP en tu router"
     echo "• Es recomendable configurar IP fija para esta Raspberry Pi"
     echo "• La instalación tardará entre 5-15 minutos dependiendo de tu conexión"
+    echo "• AdGuard Home será tu servidor DNS con bloqueo de anuncios avanzado"
     echo ""
     press_enter
 }
 
-collect_pihole_config() {
+collect_adguard_config() {
     clear
-    echo -e "${CYAN}📋 Configuración de Pi-hole${NC}"
+    echo -e "${CYAN}🛡️  Configuración de AdGuard Home${NC}"
     echo ""
-    echo "Pi-hole bloqueará anuncios y será tu servidor DNS interno."
+    echo "AdGuard Home bloqueará anuncios y será tu servidor DNS completo."
+    echo ""
+    echo -e "${GREEN}Características de AdGuard Home:${NC}"
+    echo "• Bloqueo de anuncios avanzado"
+    echo "• DNS-over-HTTPS y DNS-over-TLS nativos"
+    echo "• Interfaz web moderna y potente"
+    echo "• Estadísticas detalladas"
+    echo "• Configuración automática"
     echo ""
     
     while true; do
-        echo -n "Introduce una contraseña segura para Pi-hole: "
-        read -s PIHOLE_PASSWORD
+        echo -n "Introduce una contraseña segura para AdGuard Home: "
+        read -s ADGUARD_PASSWORD
         echo ""
         
-        if [[ ${#PIHOLE_PASSWORD} -lt 8 ]]; then
+        if [[ ${#ADGUARD_PASSWORD} -lt 8 ]]; then
             log_error "La contraseña debe tener al menos 8 caracteres"
             continue
         fi
@@ -249,8 +257,8 @@ collect_pihole_config() {
         read -s password_confirm
         echo ""
         
-        if [[ "$PIHOLE_PASSWORD" == "$password_confirm" ]]; then
-            log_success "Contraseña de Pi-hole configurada"
+        if [[ "$ADGUARD_PASSWORD" == "$password_confirm" ]]; then
+            log_success "Contraseña de AdGuard Home configurada"
             break
         else
             log_error "Las contraseñas no coinciden"
@@ -377,14 +385,10 @@ collect_network_config() {
         else
             USE_DOMAIN="true"
             
-            # Detectar DuckDNS y pedir token automáticamente
-            echo "DEBUG: Dominio introducido: $DOMAIN_NAME"
-            if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
-                echo "DEBUG: DuckDNS detectado, llamando función..."
-                configure_duckdns_auto_update
-            else
-                echo "DEBUG: DuckDNS NO detectado"
-            fi
+                            # Detectar DuckDNS y pedir token automáticamente
+                if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
+                    configure_duckdns_auto_update
+                fi
         fi
     fi
     
@@ -409,9 +413,10 @@ show_configuration_summary() {
     echo "  • Zona horaria: $TIMEZONE"
     echo "  • Directorio de instalación: $WORK_DIR"
     echo ""
-    echo -e "${GREEN}Pi-hole:${NC}"
+    echo -e "${GREEN}AdGuard Home:${NC}"
     echo "  • Contraseña: [Configurada]"
-    echo "  • Puerto web: 8080"
+    echo "  • Puerto web: 8080 (HTTP) / 8443 (HTTPS)"
+    echo "  • Puerto inicial: 3000 (primer acceso)"
     echo ""
     echo -e "${GREEN}WireGuard:${NC}"
     echo "  • Número de clientes: $WIREGUARD_PEERS"
@@ -428,9 +433,8 @@ show_configuration_summary() {
     fi
     echo -e "${GREEN}Otros servicios:${NC}"
     echo "  • Portainer: Puerto 9000"
-    echo "  • Nginx Proxy Manager: Puerto 81"
-    echo "  • Unbound DNS: Puerto 5335"
-    echo ""
+    echo "  • Nginx Proxy Manager: Puerto 81 (web), 80/443 (proxy)"
+    echo "  • Watchtower: Actualizaciones automáticas"
     
     echo -n "¿Es correcta esta configuración? (Y/n): "
     read -r confirm
@@ -446,7 +450,6 @@ show_configuration_summary() {
 }
 
 configure_duckdns_auto_update() {
-    echo "DEBUG: Ejecutando función configure_duckdns_auto_update()"
     echo ""
     echo -e "${GREEN}🦆 DuckDNS detectado!${NC}"
     echo ""
@@ -493,7 +496,7 @@ configure_duckdns_auto_update() {
 
 collect_user_input() {
     welcome_message
-    collect_pihole_config
+    collect_adguard_config
     collect_timezone
     collect_wireguard_config
     collect_network_config
@@ -643,7 +646,7 @@ configure_firewall() {
 }
 
 configure_dns_resolution() {
-    log_step "Configurando resolución DNS para Pi-hole..."
+    log_step "Configurando resolución DNS para AdGuard Home..."
 
     # Herramienta para verificar puertos: lsof. Si no está, se instala.
     if ! command -v lsof &> /dev/null; then
@@ -672,7 +675,7 @@ configure_dns_resolution() {
     fi
 
     # Comprobación final para otros posibles servicios
-    if lsof -i :53 >/dev/null 2>&1 && ! docker ps | grep -q pihole; then
+    if lsof -i :53 >/dev/null 2>&1 && ! docker ps | grep -q adguardhome; then
         local service_name=$(lsof -i :53 -t -sTCP:LISTEN)
         log_error "El puerto 53 sigue ocupado por otro proceso (PID: $service_name)."
         log_error "Por favor, detén ese servicio manualmente antes de continuar."
@@ -703,9 +706,8 @@ create_directories() {
     # Crear estructura de directorios
     mkdir -p $WORK_DIR
     mkdir -p $WORK_DIR/wireguard-config
-    mkdir -p $WORK_DIR/pihole/etc-pihole
-    mkdir -p $WORK_DIR/pihole/etc-dnsmasq.d
-    mkdir -p $WORK_DIR/unbound
+    mkdir -p $WORK_DIR/adguardhome/work
+    mkdir -p $WORK_DIR/adguardhome/conf
     mkdir -p $WORK_DIR/nginx-proxy-manager/data
     mkdir -p $WORK_DIR/nginx-proxy-manager/letsencrypt
     
@@ -734,9 +736,8 @@ USE_DUCKDNS=$USE_DUCKDNS
 DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
 DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 
-# Configuración de Pi-hole
-PIHOLE_PASSWORD=$PIHOLE_PASSWORD
-
+# Configuración de AdGuard Home
+ADGUARD_PASSWORD=$ADGUARD_PASSWORD
 
 # Configuración de WireGuard
 PEERS=$WIREGUARD_PEERS
@@ -744,8 +745,7 @@ SERVERPORT=51820
 INTERNAL_SUBNET=10.14.14.0
 
 # Configuración de red interna
-PIHOLE_IP=10.13.13.100
-UNBOUND_IP=10.13.13.3
+ADGUARD_IP=10.13.13.100
 WIREGUARD_IP=10.13.13.2
 
 # Configuración de Watchtower
@@ -771,29 +771,21 @@ copy_configuration_files() {
         fi
     done
     
-    # Copiar directorio unbound
-    if [ -d "unbound" ]; then
-        cp -r unbound "$WORK_DIR/"
-        log_info "Copiado: directorio unbound"
-    else
-        log_warning "Directorio unbound no encontrado"
-    fi
+    # Ya no necesitamos copiar archivos de configuración específicos
+    # AdGuard Home se configura automáticamente
     
     # Hacer scripts ejecutables
     chmod +x "$WORK_DIR/manage.sh"
     
+    # Configurar AdGuard Home automáticamente
+    setup_adguard_config
+
     # Configurar DuckDNS si está habilitado
     if [[ "$USE_DUCKDNS" == "true" ]]; then
         setup_duckdns_updater
     fi
     
-    # Descargar root hints para Unbound
-    if [ -d "$WORK_DIR/unbound" ]; then
-        wget -O "$WORK_DIR/unbound/root.hints" https://www.internic.net/domain/named.cache
-        log_info "Descargado: root.hints para Unbound"
-    else
-        log_warning "Directorio unbound no existe, saltando descarga de root.hints"
-    fi
+    # AdGuard Home maneja automáticamente los archivos DNS necesarios
     
     # Configurar permisos
     chown -R "$INSTALL_USER:$INSTALL_USER" "$WORK_DIR"
@@ -886,15 +878,198 @@ EOF
     log_success "DuckDNS configurado - Verificación cada 5 minutos"
 }
 
-configure_system_dns() {
-    log_step "Configurando DNS del sistema para usar Pi-hole..."
+setup_adguard_config() {
+    log_info "Configurando AdGuard Home automáticamente..."
     
-    # Esperar a que Pi-hole esté listo
+    # Crear configuración básica para AdGuard Home
+    cat > "$WORK_DIR/adguardhome/conf/AdGuardHome.yaml" << EOF
+http:
+  pprof:
+    port: 6060
+    enabled: false
+  address: 0.0.0.0:80
+  session_ttl: 720h
+users:
+  - name: admin
+    password: \$2y\$10\$\${ADGUARD_PASSWORD//\$/\\\$}
+auth_attempts: 5
+block_auth_min: 15
+http_proxy: ""
+language: es
+theme: auto
+debug_pprof: false
+web_session_ttl: 720h
+dns:
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+  anonymize_client_ip: false
+  protection_enabled: true
+  blocking_mode: default
+  blocking_ipv4: ""
+  blocking_ipv6: ""
+  blocked_response_ttl: 10
+  parental_block_host: family-block.dns.adguard.com
+  safebrowsing_block_host: standard-block.dns.adguard.com
+  ratelimit: 20
+  ratelimit_whitelist: []
+  refuse_any: true
+  upstream_dns:
+    - https://dns.cloudflare.com/dns-query
+    - https://dns.google/dns-query
+    - tls://1.1.1.1
+    - tls://8.8.8.8
+  upstream_dns_file: ""
+  bootstrap_dns:
+    - 9.9.9.10
+    - 149.112.112.10
+    - 2620:fe::10
+    - 2620:fe::fe:10
+  all_servers: false
+  fastest_addr: false
+  fastest_timeout: 1s
+  allowed_clients: []
+  disallowed_clients: []
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+  trusted_proxies:
+    - 127.0.0.0/8
+    - ::1/128
+  cache_size: 4194304
+  cache_ttl_min: 0
+  cache_ttl_max: 0
+  cache_optimistic: false
+  bogus_nxdomain: []
+  aaaa_disabled: false
+  enable_dnssec: false
+  edns_client_subnet:
+    custom_ip: ""
+    enabled: false
+    use_custom: false
+  max_goroutines: 300
+  handle_ddr: true
+  ipset: []
+  ipset_file: ""
+  filtering_enabled: true
+  filters_update_interval: 24
+  parental_enabled: false
+  safesearch_enabled: false
+  safebrowsing_enabled: false
+  safebrowsing_cache_size: 1048576
+  safesearch_cache_size: 1048576
+  parental_cache_size: 1048576
+  cache_time: 30
+  rewrites: []
+  blocked_services: []
+  upstream_timeout: 10s
+  private_networks: []
+  use_private_ptr_resolvers: true
+  local_ptr_upstreams: []
+  use_dns64: false
+  dns64_prefixes: []
+  serve_http3: false
+  use_http3_upstreams: false
+tls:
+  enabled: false
+  server_name: ""
+  force_https: false
+  port_https: 443
+  port_dns_over_tls: 853
+  port_dns_over_quic: 784
+  port_dnscrypt: 0
+  dnscrypt_config_file: ""
+  allow_unencrypted_doh: false
+  certificate_chain: ""
+  private_key: ""
+  certificate_path: ""
+  private_key_path: ""
+  strict_sni_check: false
+querylog:
+  enabled: true
+  file_enabled: true
+  interval: 2160h
+  size_memory: 1000
+  ignored: []
+statistics:
+  enabled: true
+  interval: 24h
+  ignored: []
+filters:
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+    name: AdGuard DNS filter
+    id: 1
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
+    name: AdAway Default Blocklist
+    id: 2
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_3.txt
+    name: EasyList
+    id: 3
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_4.txt
+    name: EasyPrivacy
+    id: 4
+whitelist_filters: []
+user_rules: []
+dhcp:
+  enabled: false
+  interface_name: ""
+  local_domain_name: lan
+  dhcpv4:
+    gateway_ip: ""
+    subnet_mask: ""
+    range_start: ""
+    range_end: ""
+    lease_duration: 86400
+    icmp_timeout_msec: 1000
+    options: []
+  dhcpv6:
+    range_start: ""
+    lease_duration: 86400
+    ra_slaac_only: false
+    ra_allow_slaac: false
+clients:
+  runtime_sources:
+    whois: true
+    arp: true
+    rdns: true
+    dhcp: true
+    hosts: true
+  persistent: []
+log_file: ""
+log_max_backups: 0
+log_max_size: 100
+log_max_age: 3
+log_compress: false
+log_localtime: false
+verbose: false
+os:
+  group: ""
+  user: ""
+  rlimit_nofile: 0
+schema_version: 27
+EOF
+
+    # Configurar permisos
+    chown -R $INSTALL_USER:$INSTALL_USER "$WORK_DIR/adguardhome"
+    chmod -R 755 "$WORK_DIR/adguardhome"
+    
+    log_success "AdGuard Home configurado automáticamente"
+}
+
+configure_system_dns() {
+    log_step "Configurando DNS del sistema para usar AdGuard Home..."
+    
+    # Esperar a que AdGuard Home esté listo
     local max_wait=60
     local elapsed=0
     
     while [ $elapsed -lt $max_wait ]; do
-        if docker exec pihole pihole status &>/dev/null; then
+        if curl -s http://localhost:8080/ &>/dev/null; then
             break
         fi
         sleep 2
@@ -904,7 +1079,7 @@ configure_system_dns() {
     # Detectar IP local
     LOCAL_IP=$(hostname -I | awk '{print $1}')
     
-    # Configurar el sistema para usar Pi-hole como DNS
+    # Configurar el sistema para usar AdGuard Home como DNS
     cat > /etc/systemd/resolved.conf << EOF
 [Resolve]
 DNS=$LOCAL_IP
@@ -919,8 +1094,8 @@ EOF
     # Reiniciar systemd-resolved
     systemctl restart systemd-resolved
     
-    log_success "Sistema configurado para usar Pi-hole como DNS"
-    log_info "DNS del sistema: $LOCAL_IP (Pi-hole)"
+    log_success "Sistema configurado para usar AdGuard Home como DNS"
+    log_info "DNS del sistema: $LOCAL_IP (AdGuard Home)"
 }
 
 # ========================================================================
@@ -947,7 +1122,7 @@ wait_for_services() {
     local elapsed=0
     local interval=10
     
-    local services=("pihole" "unbound" "wireguard" "portainer")
+    local services=("adguardhome" "wireguard" "portainer" "nginx-proxy-manager" "watchtower")
     
     while [ $elapsed -lt $max_wait ]; do
         local all_healthy=true
@@ -998,9 +1173,10 @@ show_final_info() {
     
     echo -e "${CYAN}📋 Información de acceso:${NC}"
     echo ""
-    echo -e "${GREEN}🌐 Pi-hole (Bloqueo de anuncios):${NC}"
-    echo "   URL: http://$LOCAL_IP:8080/admin"
-    echo "   Usuario: admin"
+    echo -e "${GREEN}🛡️  AdGuard Home (Bloqueo de anuncios):${NC}"
+    echo "   URL inicial: http://$LOCAL_IP:3000 (primera configuración)"
+    echo "   URL final: http://$LOCAL_IP:8080 (después de configurar)"
+    echo "   Usuario: [Configuras en el primer acceso]"
     echo "   Contraseña: [La que configuraste]"
     echo ""
     echo -e "${GREEN}🐳 Portainer (Gestión Docker):${NC}"

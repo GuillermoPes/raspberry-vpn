@@ -1,6 +1,6 @@
 # 🏠 Raspberry Pi VPN Server Completo
 
-Sistema completo para Raspberry Pi con VPN WireGuard, Pi-hole, Portainer y servicios adicionales útiles.
+Sistema completo para Raspberry Pi con VPN WireGuard, AdGuard Home, Portainer y servicios adicionales útiles.
 
 ## 🚀 Instalación de 3 Comandos
 
@@ -43,8 +43,7 @@ sudo ./setup.sh
 
 ### 🔧 **Servicios Principales**
 - **🔒 WireGuard** (Puerto 51820/UDP) - Servidor VPN para acceso remoto seguro
-- **🛡️ Pi-hole** (Puerto 8080) - Bloqueo de anuncios y servidor DNS
-- **🌐 Unbound** (Puerto 5335) - DNS resolver recursivo privado
+- **🛡️ AdGuard Home** (Puerto 8080/8443/3000) - DNS completo con bloqueo de anuncios avanzado
 - **🐳 Portainer** (Puerto 9000) - Gestión web completa de contenedores Docker
 
 ### 🚀 **Servicios Adicionales**
@@ -85,7 +84,7 @@ sudo ./setup.sh
    - Instala dependencias básicas
 
 2. **📋 Configuración Interactiva**
-   - Contraseña segura para Pi-hole
+   - Contraseña segura para AdGuard Home
    - Zona horaria (autodetectada)
    - Número de clientes VPN (1-10)
    - IP pública o dominio (autodetectado)
@@ -111,14 +110,14 @@ sudo ./setup.sh
 ## 🌐 Acceso a los Servicios
 
 ### **URLs de Acceso**
-- **Pi-hole**: `http://IP-RASPBERRY:8080/admin`
+- **AdGuard Home**: `http://IP-RASPBERRY:8080` (interfaz web) / `http://IP-RASPBERRY:3000` (configuración inicial)
 - **Portainer**: `http://IP-RASPBERRY:9000`
 - **Nginx Proxy Manager**: `http://IP-RASPBERRY:81`
 
 ### **Credenciales**
 
-#### **Pi-hole**
-- **Usuario**: `admin`
+#### **AdGuard Home**
+- **Usuario**: `admin` (o el que configures en el primer acceso)
 - **Contraseña**: La que configuraste durante la instalación
 
 #### **Portainer**
@@ -199,7 +198,7 @@ cd /opt/vpn-server
 - 🔧 Actualizar servicios
 - 📱 Mostrar códigos QR WireGuard
 - 💾 Crear backup
-- 🔒 Cambiar contraseña Pi-hole
+- 🔒 Cambiar contraseña AdGuard Home
 - 🌐 Mostrar IP pública
 - 🚀 Información del sistema
 
@@ -209,9 +208,9 @@ cd /opt/vpn-server
 docker ps --format "table {{.Names}}\t{{.Status}}"
 
 # Ver logs específicos
-docker logs pihole
+docker logs adguardhome
 docker logs wireguard
-docker logs unbound
+
 
 # Actualizar servicios
 docker-compose pull && docker-compose up -d
@@ -314,16 +313,16 @@ docker exec -it wireguard wg show
 sudo netstat -ulpn | grep 51820
 ```
 
-### **Pi-hole no funciona**
+### **AdGuard Home no funciona**
 ```bash
 # Verificar estado
-docker logs pihole
+docker logs adguardhome
 
 # Verificar DNS
-nslookup google.com localhost
+nslookup google.com localhost:53
 
 # Reiniciar servicio
-docker-compose restart pihole
+docker-compose restart adguardhome
 ```
 
 ### **Servicios no inician**
@@ -341,13 +340,12 @@ docker-compose restart
 ## 📈 Recursos del Sistema
 
 ### **Memoria Estimada (Raspberry Pi 3B)**
-- **Pi-hole**: ~150MB
+- **AdGuard Home**: ~100MB
 - **WireGuard**: ~50MB
 - **Portainer**: ~30MB
-- **Unbound**: ~20MB
 - **Nginx Proxy Manager**: ~100MB
 - **Sistema**: ~200MB
-- **Total**: ~550MB de 1GB disponible
+- **Total**: ~480MB de 1GB disponible
 
 ### **CPU**
 - **Uso normal**: 10-20%

@@ -1,3 +1,76 @@
+# Limpiar Docker completamente
+sudo docker stop $(sudo docker ps -aq) 2>/dev/null
+sudo docker rm $(sudo docker ps -aq) 2>/dev/null
+sudo docker system prune -af --volumes
+
+# Verificar estado de systemd-resolved
+sudo systemctl status systemd-resolved
+
+
+En lugar de dejarle al usuario una tarea
+  manual post-instalación, la integramos directamente en el script. Es la diferencia entre dar un coche con el asiento
+  del conductor sin montar y darlo listo para conducir.
+
+  Sí, se puede hacer, y es una mejora fantástica.
+
+
+  No es trivial, porque implica interactuar con la API de Nginx Proxy Manager (NPM) desde un script de Bash, pero es
+  totalmente factible.
+
+  El Plan de Acción
+
+  Aquí tienes cómo lo haríamos, paso a paso:
+
+
+   1. Modificar `setup.sh`:
+       * Añadir una pregunta: En la fase de collect_user_input, añadiremos una nueva función para pedir el correo
+         electrónico del usuario. Lo guardaremos en una variable (ej: USER_EMAIL).
+       * Esperar a NPM: Después de docker-compose up -d, el script esperará en un bucle hasta que la API de NPM esté
+         disponible (por ejemplo, haciendo curl a http://localhost:81/api/ hasta que responda).
+       * Lanzar el configurador: Una vez que NPM esté listo, setup.sh ejecutará un nuevo script que crearemos, llamado
+         configure_npm.sh.
+
+
+   2. Crear el Script `configure_npm.sh`:
+       * Este script será el cerebro de la operación. Usará curl para hablar con la API de NPM.
+       * Paso 1: Obtener Token: Hará una petición a la API con las credenciales por defecto (admin@example.com /
+         changeme) para obtener un token de autenticación.
+       * Paso 2: Cambiar Credenciales: Inmediatamente, usará ese token para cambiar el email del administrador al
+         USER_EMAIL que proporcionaste y establecerá una contraseña segura (que guardaremos en un archivo en
+         /opt/vpn-server/npm_password.txt).
+       * Paso 3: Crear los "Proxy Hosts": Hará una petición a la API por cada servicio (Pi-hole, Portainer) para crear
+         las rutas, apuntando pihole.vpn.local a 10.13.13.100:80, etc.
+
+
+   3. El Desafío del SSL (y la Solución Inteligente):
+       * El Problema: No podemos usar Let's Encrypt para generar certificados para dominios falsos como .local, porque
+         Let's Encrypt necesita verificar que eres el dueño del dominio desde internet.
+       * La Solución: El script le pedirá a la API de NPM que genere un certificado autofirmado (Self-Signed
+         Certificate).
+       * El Resultado: Tendrás HTTPS y una conexión cifrada. La única "pega" es que la primera vez que accedas a
+         https://pihole.vpn.local desde un navegador, te mostrará una advertencia de seguridad ("La conexión no es
+         privada"). Simplemente le das a "Avanzado" -> "Acceder al sitio (no seguro)" y ya no te volverá a molestar en
+         ese dispositivo. Es un pequeño precio a pagar por una automatización completa y seguridad dentro de tu VPN.
+
+
+   4. Modificar la Salida Final:
+       * La función show_final_info en setup.sh se modificará para mostrar las nuevas y bonitas URLs
+         (https://pihole.vpn.local, https://portainer.vpn.local) en lugar de las antiguas con IP y puerto.
+
+  Resumen del Resultado Final
+
+
+  Al terminar la instalación, obtendrás:
+   * URLs limpias y seguras para todos tus servicios.
+   * HTTPS activado en todas ellas.
+   * La contraseña de NPM guardada de forma segura.
+   * Cero configuración manual requerida.
+
+
+  Este es un cambio significativo que hará tu proyecto inmensamente más profesional y fácil de usar.
+
+
+
  Ahora, sobre tu pregunta de añadir un sistema de notificaciones por email para informes periódicos y alertas:
 
   No es excesivamente complicado, pero sí añade una capa de complejidad y requiere algunas decisiones de diseño.
