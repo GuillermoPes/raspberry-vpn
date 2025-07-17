@@ -143,15 +143,37 @@ check_system() {
         esac
     fi
     
-    # Verificar que es una Raspberry Pi
-    if [[ ! -f /proc/cpuinfo ]] || ! grep -q "Raspberry Pi" /proc/cpuinfo; then
-        log_warning "Este script está optimizado para Raspberry Pi"
-        echo -n "¿Continuar en este sistema? (y/N): "
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            log_info "Instalación cancelada"
-            exit 0
-        fi
+    # Detectar arquitectura del sistema
+    ARCH=$(uname -m)
+    log_info "Arquitectura detectada: $ARCH"
+    
+    # Verificar compatibilidad
+    case $ARCH in
+        armv7l|armv6l)
+            log_info "Sistema ARM32 detectado - Compatible"
+            ;;
+        aarch64)
+            log_info "Sistema ARM64 detectado - Compatible"
+            ;;
+        x86_64)
+            log_warning "Sistema x86_64 detectado - No es Raspberry Pi"
+            echo -n "¿Continuar en este sistema? (y/N): "
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                log_info "Instalación cancelada"
+                exit 0
+            fi
+            ;;
+        *)
+            log_error "Arquitectura no soportada: $ARCH"
+            exit 1
+            ;;
+    esac
+    
+    # Verificar que es una Raspberry Pi (opcional)
+    if [[ -f /proc/cpuinfo ]] && grep -q "Raspberry Pi" /proc/cpuinfo; then
+        local rpi_model=$(grep "Model" /proc/cpuinfo | cut -d: -f2 | xargs)
+        log_info "Raspberry Pi detectada: $rpi_model"
     fi
     
     # Verificar dependencias básicas críticas

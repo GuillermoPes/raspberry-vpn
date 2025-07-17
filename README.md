@@ -253,6 +253,18 @@ sudo ./setup.sh       # Ejecutar versión actualizada
 # El script ahora verifica que los archivos existan antes de copiarlos
 ```
 
+### **Error "no matching manifest for linux/arm64" al descargar imágenes**
+```bash
+# Si falla descargando imágenes Docker:
+git pull origin main  # Actualizar con imágenes multi-arquitectura
+sudo ./setup.sh       # Ejecutar versión actualizada
+
+# El script ahora usa imágenes :latest que soportan múltiples arquitecturas:
+# - ARM32 (Raspberry Pi 3B, 4B 32-bit)
+# - ARM64 (Raspberry Pi 4B, 5 64-bit)
+# - x86_64 (PC para pruebas)
+```
+
 ### **WireGuard no conecta**
 ```bash
 # Verificar estado del servicio
@@ -334,9 +346,15 @@ docker-compose up -d
 ## 🎯 Requisitos
 
 ### **Hardware**
-- Raspberry Pi 3B o superior
-- MicroSD de 32GB o más
-- Conexión ethernet (recomendado)
+- **Raspberry Pi 3B o superior** (ARM32/ARM64)
+- **Raspberry Pi 4B, 5** (32-bit o 64-bit OS)
+- **MicroSD de 32GB** o más (Clase 10 recomendada)
+- **Conexión ethernet** (recomendado para estabilidad)
+
+### **Arquitecturas Soportadas**
+- ✅ **ARM32** (armv7l, armv6l) - Raspberry Pi 3B, 4B 32-bit
+- ✅ **ARM64** (aarch64) - Raspberry Pi 4B, 5 con OS 64-bit  
+- ✅ **x86_64** - PC/servidor para pruebas
 
 ### **Software**
 - Raspberry Pi OS (recomendado)

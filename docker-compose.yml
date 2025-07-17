@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Portainer - Gestión web de contenedores
   portainer:
-    image: portainer/portainer-ce:linux-arm
+    image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
     ports:
@@ -17,7 +17,7 @@ services:
 
   # WireGuard VPN Server
   wireguard:
-    image: linuxserver/wireguard:arm32v7-latest
+    image: linuxserver/wireguard:latest
     container_name: wireguard
     cap_add:
       - NET_ADMIN
@@ -84,7 +84,7 @@ services:
 
   # Unbound - DNS resolver recursivo
   unbound:
-    image: mvance/unbound-rpi:latest
+    image: mvance/unbound:latest
     container_name: unbound
     restart: unless-stopped
     hostname: unbound
@@ -120,7 +120,7 @@ services:
 
   # Watchtower - Actualización automática de contenedores
   watchtower:
-    image: containrrr/watchtower:armhf-latest
+    image: containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
     volumes:
