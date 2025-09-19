@@ -21,17 +21,19 @@ show_menu() {
     echo "2. 🔄 Reiniciar servicios"
     echo "3. 📋 Ver logs"
     echo "4. 🔧 Actualizar servicios"
-    echo "4b. 🔄 Migrar WG-Easy a versión mantenida"
     echo "5. 📱 Mostrar códigos QR WG-Easy"
     echo "6. 💾 Crear backup"
     echo "7. 🔒 Cambiar contraseña AdGuard Home"
-    echo "8. 🌐 Mostrar IP pública"
-    echo "9. 🔄 Cambiar IP/Dominio del servidor"
-    echo "10. 🔧 Configurar whitelist DuckDNS en AdGuard"
-    echo "11. 🚀 Información del sistema"
-    echo "12. 📊 Estado de Watchtower y actualizaciones"
-    echo "13. 🛑 Detener servicios"
-    echo "14. ▶️ Iniciar servicios"
+    echo "8. 🔐 Cambiar contraseña WG-Easy"
+    echo "9. 🌐 Mostrar IP pública"
+    echo "10. 🔄 Cambiar IP/Dominio del servidor"
+    echo "11. 🔧 Configurar whitelist DuckDNS en AdGuard"
+    echo "12. 🔄 Migrar WG-Easy a versión mantenida"
+    echo "13. 🚀 Información del sistema"
+    echo "14. 🔄 Actualizar sistema Linux"
+    echo "15. 📊 Estado de Watchtower y actualizaciones"
+    echo "16. 🛑 Detener servicios"
+    echo "17. ▶️ Iniciar servicios"
     echo "0. ❌ Salir"
     echo ""
     echo -n "Selecciona una opción: "
@@ -195,13 +197,26 @@ migrate_wg_easy() {
     docker-compose rm -f wg-easy
     docker rmi weejewel/wg-easy:latest 2>/dev/null || true
     
-    # El docker-compose.yml ya está actualizado con la nueva imagen
+    # Actualizar docker-compose.yml con la nueva imagen
+    echo -e "${YELLOW}Actualizando docker-compose.yml...${NC}"
+    if grep -q "weejewel/wg-easy" docker-compose.yml; then
+        sed -i 's/weejewel\/wg-easy:latest/ghcr.io\/wg-easy\/wg-easy:latest/g' docker-compose.yml
+        echo -e "${GREEN}docker-compose.yml actualizado${NC}"
+    else
+        echo -e "${GREEN}docker-compose.yml ya está actualizado${NC}"
+    fi
+    
+    # Descargar nueva imagen oficial
     echo -e "${YELLOW}Descargando nueva imagen oficial...${NC}"
     docker-compose pull wg-easy
     
     # Iniciar con la nueva imagen
     echo -e "${YELLOW}Iniciando WG-Easy con la imagen mantenida...${NC}"
     docker-compose up -d wg-easy
+    
+    # Migrar formato de contraseña si es necesario
+    echo -e "${YELLOW}Verificando formato de contraseña...${NC}"
+    migrate_password_format
     
     # Verificar que está funcionando
     echo -e "${YELLOW}Verificando el servicio...${NC}"
@@ -219,9 +234,16 @@ migrate_wg_easy() {
         echo ""
         echo -e "${YELLOW}Nota: Ya no verás notificaciones de actualización obsoletas${NC}"
         
-        # Mostrar la versión actual
+        # Verificar que realmente está usando la nueva imagen
         local new_image=$(docker inspect --format='{{.Config.Image}}' wg-easy 2>/dev/null)
         echo -e "${GREEN}Imagen actual: $new_image${NC}"
+        
+        # Verificación adicional
+        if [[ "$new_image" == "ghcr.io/wg-easy/wg-easy:latest" ]]; then
+            echo -e "${GREEN}✅ Migración completada correctamente${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Verificar: La imagen debería ser ghcr.io/wg-easy/wg-easy:latest${NC}"
+        fi
     else
         echo -e "${RED}❌ Error durante la migración${NC}"
         echo "El servicio no se inició correctamente. Revisa los logs:"
@@ -254,6 +276,108 @@ create_backup() {
     echo -e "${GREEN}Backup creado en: ~/backups/$backup_file${NC}"
     echo -e "${YELLOW}Tamaño del backup:${NC}"
     ls -lh ~/backups/$backup_file
+}
+
+# Función para cambiar contraseña de WG-Easy
+change_wg_easy_password() {
+    echo -e "${CYAN}=== Cambio de contraseña WG-Easy ===${NC}"
+    echo ""
+    
+    # Verificar que WG-Easy está ejecutándose
+    if ! docker ps | grep -q wg-easy; then
+        echo -e "${RED}WG-Easy no está ejecutándose${NC}"
+        echo "Inicia los servicios primero con la opción 16"
+        return
+    fi
+    
+    echo -e "${YELLOW}Cambiarás la contraseña de acceso a la interfaz web de WG-Easy${NC}"
+    echo "URL: http://IP:51821"
+    echo ""
+    
+    while true; do
+        echo -n "Introduce la nueva contraseña (mínimo 8 caracteres): "
+        read -s new_password
+        echo ""
+        
+        if [[ ${#new_password} -lt 8 ]]; then
+            echo -e "${RED}La contraseña debe tener al menos 8 caracteres${NC}"
+            continue
+        fi
+        
+        echo -n "Confirma la nueva contraseña: "
+        read -s password_confirm
+        echo ""
+        
+        if [[ "$new_password" != "$password_confirm" ]]; then
+            echo -e "${RED}Las contraseñas no coinciden${NC}"
+            continue
+        fi
+        
+        # Confirmar el cambio
+        echo -e "${YELLOW}¿Confirmar el cambio de contraseña? (y/N): ${NC}"
+        read -r confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Cambio cancelado"
+            return
+        fi
+        
+        break
+    done
+    
+    echo -e "${GREEN}Actualizando contraseña...${NC}"
+    
+    # Verificar que Python y bcrypt están disponibles
+    if ! python3 -c "import bcrypt" 2>/dev/null; then
+        echo -e "${YELLOW}Instalando bcrypt...${NC}"
+        pip3 install bcrypt >/dev/null 2>&1 || {
+            echo -e "${RED}Error: No se pudo instalar bcrypt${NC}"
+            return
+        }
+    fi
+    
+    # Generar hash bcrypt
+    local raw_hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'$new_password', bcrypt.gensalt()).decode())" 2>/dev/null)
+    
+    if [[ -z "$raw_hash" ]]; then
+        echo -e "${RED}Error al generar hash de contraseña${NC}"
+        return
+    fi
+    
+    # Escapar el símbolo $ para Docker Compose
+    local escaped_hash=$(echo "$raw_hash" | sed 's/\$/\$\$/g')
+    
+    # Hacer backup del archivo .env
+    cp .env .env.backup.$(date +%Y%m%d-%H%M%S)
+    echo -e "${GREEN}Backup del .env creado${NC}"
+    
+    # Actualizar .env
+    sed -i '/PASSWORD_HASH/d' .env
+    echo "PASSWORD_HASH=$escaped_hash" >> .env
+    
+    echo -e "${GREEN}Archivo .env actualizado${NC}"
+    
+    # Reiniciar WG-Easy para aplicar cambios
+    echo -e "${YELLOW}Reiniciando WG-Easy para aplicar cambios...${NC}"
+    docker-compose down wg-easy
+    docker-compose up -d wg-easy
+    
+    # Esperar a que inicie
+    echo -e "${YELLOW}Esperando que WG-Easy inicie...${NC}"
+    sleep 10
+    
+    if docker ps | grep wg-easy | grep -q "Up"; then
+        echo ""
+        echo -e "${GREEN}¡Contraseña cambiada exitosamente!${NC}"
+        echo ""
+        echo -e "${CYAN}Información de acceso:${NC}"
+        echo "• URL: http://IP:51821"
+        echo "• Nueva contraseña: [La que acabas de configurar]"
+        echo ""
+        echo -e "${YELLOW}Nota: Puede que necesites limpiar la cache del navegador${NC}"
+    else
+        echo -e "${RED}Error: WG-Easy no se inició correctamente${NC}"
+        echo "Revisa los logs: docker logs wg-easy"
+    fi
 }
 
 # Función para cambiar contraseña AdGuard Home
@@ -503,6 +627,127 @@ show_system_info() {
     docker-compose ps --format table
 }
 
+# Función para actualizar sistema Linux
+update_system_linux() {
+    echo -e "${CYAN}=== Actualización del Sistema Linux ===${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}Esta función actualizará el sistema operativo Raspberry Pi${NC}"
+    echo -e "${YELLOW}Esto puede tomar varios minutos dependiendo de las actualizaciones disponibles${NC}"
+    echo ""
+    echo -e "${RED}ADVERTENCIA: Durante la actualización se pueden reiniciar servicios del sistema${NC}"
+    echo -e "${RED}Se recomienda hacer esto cuando no haya tráfico crítico${NC}"
+    echo ""
+    
+    # Mostrar espacio en disco antes
+    echo -e "${BLUE}Espacio en disco actual:${NC}"
+    df -h / | tail -1
+    echo ""
+    
+    echo -e "${YELLOW}¿Continuar con la actualización? (y/N): ${NC}"
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Actualización cancelada"
+        return
+    fi
+    
+    echo ""
+    echo -e "${GREEN}Iniciando actualización del sistema...${NC}"
+    echo ""
+    
+    # Paso 1: Actualizar lista de paquetes
+    echo -e "${BLUE}1/4 - Actualizando lista de paquetes...${NC}"
+    sudo apt update
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error al actualizar la lista de paquetes${NC}"
+        return
+    fi
+    
+    # Paso 2: Mostrar actualizaciones disponibles
+    echo ""
+    echo -e "${BLUE}2/4 - Verificando actualizaciones disponibles...${NC}"
+    upgradable=$(apt list --upgradable 2>/dev/null | wc -l)
+    
+    if [ $upgradable -le 1 ]; then
+        echo -e "${GREEN}✅ El sistema ya está actualizado${NC}"
+        echo ""
+        echo -e "${BLUE}Verificando si hay actualizaciones del firmware...${NC}"
+        sudo rpi-update --help >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo -e "${YELLOW}¿Verificar actualizaciones del firmware? (y/N): ${NC}"
+            read -r firmware_check
+            if [[ "$firmware_check" =~ ^[Yy]$ ]]; then
+                echo -e "${BLUE}Verificando firmware...${NC}"
+                sudo rpi-update
+            fi
+        fi
+        return
+    fi
+    
+    echo -e "${YELLOW}Se encontraron $((upgradable-1)) paquetes para actualizar${NC}"
+    echo ""
+    
+    # Mostrar algunos paquetes principales
+    echo -e "${BLUE}Principales actualizaciones disponibles:${NC}"
+    apt list --upgradable 2>/dev/null | head -10
+    echo ""
+    
+    echo -e "${YELLOW}¿Continuar con la instalación de actualizaciones? (y/N): ${NC}"
+    read -r install_confirm
+    if [[ ! "$install_confirm" =~ ^[Yy]$ ]]; then
+        echo "Instalación de actualizaciones cancelada"
+        return
+    fi
+    
+    # Paso 3: Actualizar paquetes
+    echo ""
+    echo -e "${BLUE}3/4 - Instalando actualizaciones...${NC}"
+    sudo apt upgrade -y
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error durante la actualización de paquetes${NC}"
+        return
+    fi
+    
+    # Paso 4: Limpiar paquetes obsoletos
+    echo ""
+    echo -e "${BLUE}4/4 - Limpiando paquetes obsoletos...${NC}"
+    sudo apt autoremove -y
+    sudo apt autoclean
+    
+    echo ""
+    echo -e "${GREEN}✅ Actualización del sistema completada${NC}"
+    echo ""
+    
+    # Mostrar espacio en disco después
+    echo -e "${BLUE}Espacio en disco después de la actualización:${NC}"
+    df -h / | tail -1
+    echo ""
+    
+    # Verificar si se requiere reinicio
+    if [ -f /var/run/reboot-required ]; then
+        echo -e "${YELLOW}⚠️  Se requiere reinicio del sistema para completar algunas actualizaciones${NC}"
+        echo -e "${YELLOW}¿Reiniciar ahora? (y/N): ${NC}"
+        read -r reboot_confirm
+        if [[ "$reboot_confirm" =~ ^[Yy]$ ]]; then
+            echo -e "${RED}Reiniciando sistema en 10 segundos...${NC}"
+            echo -e "${YELLOW}Los servicios Docker se reiniciarán automáticamente${NC}"
+            sleep 10
+            sudo reboot
+        else
+            echo -e "${YELLOW}Recuerda reiniciar el sistema cuando sea conveniente${NC}"
+        fi
+    else
+        echo -e "${GREEN}✅ No se requiere reinicio${NC}"
+    fi
+    
+    # Verificar estado de servicios Docker
+    echo ""
+    echo -e "${BLUE}Verificando servicios Docker...${NC}"
+    docker-compose ps --format table
+}
+
 # Función para detener servicios
 stop_services() {
     echo -e "${YELLOW}¿Estás seguro de que quieres detener todos los servicios? (y/N)${NC}"
@@ -519,6 +764,58 @@ start_services() {
     echo -e "${GREEN}Iniciando servicios...${NC}"
     docker-compose up -d
     echo -e "${GREEN}Servicios iniciados${NC}"
+}
+
+# Función para migrar formato de contraseña de WG-Easy
+migrate_password_format() {
+    # Verificar si necesita migración
+    if grep -q "PASSWORD=\${WG_EASY_PASSWORD}" docker-compose.yml; then
+        log_info "Migrando formato de contraseña a hash bcrypt..."
+        
+        # Obtener contraseña actual
+        local current_password=$(grep "WG_EASY_PASSWORD=" .env | cut -d'=' -f2 | sed 's/^#[[:space:]]*//')
+        
+        if [ -z "$current_password" ]; then
+            log_warning "No se encontró contraseña, saltando migración"
+            return
+        fi
+        
+        # Verificar que Python y bcrypt están disponibles
+        if ! python3 -c "import bcrypt" 2>/dev/null; then
+            log_info "Instalando bcrypt para Python..."
+            pip3 install bcrypt >/dev/null 2>&1 || {
+                log_warning "No se pudo instalar bcrypt, saltando migración de contraseña"
+                return
+            }
+        fi
+        
+        # Generar hash bcrypt
+        local password_hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'$current_password', bcrypt.gensalt()).decode())" 2>/dev/null)
+        
+        if [ -z "$password_hash" ]; then
+            log_warning "No se pudo generar hash, saltando migración"
+            return
+        fi
+        
+        # Actualizar docker-compose.yml
+        sed -i 's/PASSWORD=${WG_EASY_PASSWORD}/PASSWORD_HASH=${PASSWORD_HASH}/' docker-compose.yml
+        
+        # Actualizar .env
+        sed -i '/WG_EASY_PASSWORD/d' .env
+        sed -i '/PASSWORD_HASH/d' .env
+        # Escapar el símbolo $ para Docker Compose
+        local escaped_hash=$(echo "$password_hash" | sed 's/\$/\$\$/g')
+        echo "PASSWORD_HASH=$escaped_hash" >> .env
+        
+        log_success "Formato de contraseña migrado a hash bcrypt"
+        
+        # Reiniciar para aplicar cambios (down/up para recargar variables)
+        docker-compose down wg-easy
+        docker-compose up -d wg-easy
+        sleep 5
+    else
+        log_info "Formato de contraseña ya está actualizado"
+    fi
 }
 
 # Función para verificar estado de Watchtower y actualizaciones
@@ -617,9 +914,6 @@ main() {
             4)
                 update_services
                 ;;
-            4b)
-                migrate_wg_easy
-                ;;
             5)
                 show_qr_codes
                 ;;
@@ -630,24 +924,33 @@ main() {
                 change_adguard_password
                 ;;
             8)
-                show_public_ip
+                change_wg_easy_password
                 ;;
             9)
-                change_server_ip
+                show_public_ip
                 ;;
             10)
-                configure_adguard_whitelist
+                change_server_ip
                 ;;
             11)
-                show_system_info
+                configure_adguard_whitelist
                 ;;
             12)
-                check_watchtower_status
+                migrate_wg_easy
                 ;;
             13)
-                stop_services
+                show_system_info
                 ;;
             14)
+                update_system_linux
+                ;;
+            15)
+                check_watchtower_status
+                ;;
+            16)
+                stop_services
+                ;;
+            17)
                 start_services
                 ;;
             0)

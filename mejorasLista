@@ -7,6 +7,9 @@ sudo docker system prune -af --volumes
 sudo systemctl status systemd-resolved
 
 
+git clone --branch topAuto https://github.com/GuillermoPes/raspberry-vpn.git
+
+
 En lugar de dejarle al usuario una tarea
   manual post-instalación, la integramos directamente en el script. Es la diferencia entre dar un coche con el asiento
   del conductor sin montar y darlo listo para conducir.

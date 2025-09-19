@@ -362,8 +362,30 @@ collect_wg_easy_config() {
         echo ""
         
         if [[ "$WG_EASY_PASSWORD" == "$password_confirm" ]]; then
-            log_success "Contraseña de WG-Easy configurada"
-            break
+            # Generar hash bcrypt automáticamente
+            log_info "Generando hash seguro de contraseña..."
+            
+            # Verificar que Python y bcrypt están disponibles
+            if ! python3 -c "import bcrypt" 2>/dev/null; then
+                log_info "Instalando bcrypt para Python..."
+                pip3 install bcrypt >/dev/null 2>&1 || {
+                    log_error "No se pudo instalar bcrypt"
+                    continue
+                }
+            fi
+            
+            # Generar hash bcrypt
+            local raw_hash=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'$WG_EASY_PASSWORD', bcrypt.gensalt()).decode())" 2>/dev/null)
+            # Escapar el símbolo $ para Docker Compose
+            WG_EASY_PASSWORD_HASH=$(echo "$raw_hash" | sed 's/\$/\$\$/g')
+            
+            if [[ -n "$WG_EASY_PASSWORD_HASH" ]]; then
+                log_success "Contraseña de WG-Easy configurada y encriptada"
+                break
+            else
+                log_error "Error al generar hash de contraseña"
+                continue
+            fi
         else
             log_error "Las contraseñas no coinciden"
         fi
@@ -708,10 +730,8 @@ USE_DUCKDNS=$USE_DUCKDNS
 DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
 DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 
-# Configuración de AdGuard Home
-
-
-WG_EASY_PASSWORD=$WG_EASY_PASSWORD
+# Configuración de WG-Easy
+PASSWORD_HASH=$WG_EASY_PASSWORD_HASH
 
 # Configuración de WireGuard
 PEERS=$WIREGUARD_PEERS
