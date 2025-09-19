@@ -231,10 +231,12 @@ Presiona Enter para continuar...
    Usuario: admin@example.com
    Contraseña: changeme
 
-🔒 WireGuard VPN:
-   Servidor: casa.duckdns.org:51820
-   Clientes configurados: 3
-   IP pública: 88.12.34.56
+🔒 WG-Easy (Interfaz Web WireGuard):
+   URL: http://192.168.1.100:51821
+   Usuario: admin
+   Contraseña: [La que configuraste para WG-Easy]
+   Servidor VPN: casa.duckdns.org:51820
+   Clientes configurados: Gestionado desde WG-Easy
 
 🦆 DuckDNS:
    Dominio: casa.duckdns.org
@@ -274,13 +276,17 @@ cd /opt/vpn-server
 2. 🔄 Reiniciar servicios
 3. 📋 Ver logs
 4. 🔧 Actualizar servicios
-5. 📱 Mostrar códigos QR WireGuard
+4b. 🔄 Migrar WG-Easy a versión mantenida
+5. 📱 Mostrar códigos QR WG-Easy
 6. 💾 Crear backup
 7. 🔒 Cambiar contraseña AdGuard Home
 8. 🌐 Mostrar IP pública
-9. 🚀 Información del sistema
-10. 🛑 Detener servicios
-11. ▶️ Iniciar servicios
+9. 🔄 Cambiar IP/Dominio del servidor
+10. 🔧 Configurar whitelist DuckDNS en AdGuard
+11. 🚀 Información del sistema
+12. 📊 Estado de Watchtower y actualizaciones
+13. 🛑 Detener servicios
+14. ▶️ Iniciar servicios
 0. ❌ Salir
 
 Selecciona una opción:

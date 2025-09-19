@@ -134,13 +134,18 @@ sudo ./setup.sh
 ```bash
 cd /opt/vpn-server
 ./manage.sh
-# Seleccionar opción 5: Mostrar códigos QR WireGuard
+# Seleccionar opción 5: Mostrar códigos QR WG-Easy
+```
+
+**O acceder directamente a la interfaz web:**
+```
+http://IP-RASPBERRY:51821
 ```
 
 ### **Configuraciones Manuales**
-Los archivos de configuración se generan automáticamente en:
+WG-Easy gestiona automáticamente las configuraciones de clientes. Los archivos se almacenan en:
 ```
-/opt/vpn-server/wireguard-config/peer[1-N]/peer[1-N].conf
+/opt/vpn-server/wg-easy/
 ```
 
 ### **Aplicaciones Cliente**
@@ -163,6 +168,12 @@ El script **detecta automáticamente** si usas DuckDNS:
 1. Ve a [duckdns.org](https://www.duckdns.org/)
 2. Inicia sesión (GitHub, Google, etc.)
 3. Copia el token que aparece en la parte superior
+
+### **Configuración automática de whitelist para DuckDNS**
+El sistema configura automáticamente la whitelist en AdGuard Home para evitar que se bloqueen las actualizaciones de DuckDNS:
+- ✅ **Automático**: Se configura durante la instalación
+- ✅ **Manual**: Opción en `./manage.sh` para instalaciones existentes
+- ✅ **Evita bloqueos**: Las actualizaciones cada 5 minutos funcionan sin problemas
 
 ### **Funcionalidades**
 - ✅ **Verificación cada 5 minutos** de cambios de IP
@@ -196,11 +207,15 @@ cd /opt/vpn-server
 - 🔄 Reiniciar servicios
 - 📋 Ver logs
 - 🔧 Actualizar servicios
-- 📱 Mostrar códigos QR WireGuard
+- 🔄 Migrar WG-Easy a versión mantenida
+- 📱 Mostrar códigos QR WG-Easy
 - 💾 Crear backup
 - 🔒 Cambiar contraseña AdGuard Home
 - 🌐 Mostrar IP pública
+- 🔄 Cambiar IP/Dominio del servidor
+- 🔧 Configurar whitelist DuckDNS en AdGuard
 - 🚀 Información del sistema
+- 📊 Estado de Watchtower y actualizaciones
 
 ### **Comandos Útiles**
 ```bash
@@ -209,7 +224,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 # Ver logs específicos
 docker logs adguardhome
-docker logs wireguard
+docker logs wg-easy
 
 
 # Actualizar servicios
@@ -304,10 +319,10 @@ sudo ./setup.sh       # Ejecutar versión actualizada
 ### **WireGuard no conecta**
 ```bash
 # Verificar estado del servicio
-docker logs wireguard
+docker logs wg-easy
 
 # Verificar configuración
-docker exec -it wireguard wg show
+docker exec -it wg-easy wg show
 
 # Verificar puertos
 sudo netstat -ulpn | grep 51820
@@ -363,6 +378,22 @@ cd /opt/vpn-server
 docker-compose pull
 docker-compose up -d
 ```
+
+### **🔄 Migración de WG-Easy**
+El proyecto WG-Easy original (`weejewel/wg-easy`) fue archivado en abril 2024. Tu instalación utiliza automáticamente la **versión mantenida oficial** (`ghcr.io/wg-easy/wg-easy`).
+
+**Para instalaciones existentes con la versión obsoleta:**
+```bash
+cd /opt/vpn-server
+./manage.sh
+# Seleccionar opción 4b: "🔄 Migrar WG-Easy a versión mantenida"
+```
+
+**Beneficios de la migración:**
+- ✅ Elimina notificaciones de actualización obsoletas
+- ✅ Asegura futuras actualizaciones automáticas
+- ✅ Mantiene toda tu configuración y clientes VPN
+- ✅ Usa la imagen oficial mantenida activamente
 
 ## 🛡️ Seguridad
 

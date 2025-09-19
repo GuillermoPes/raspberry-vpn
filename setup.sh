@@ -987,7 +987,11 @@ filters:
     name: EasyPrivacy
     id: 4
 whitelist_filters: []
-user_rules: []
+user_rules:
+  - "@@||duckdns.org^"
+  - "@@||www.duckdns.org^"
+  - "@@||ifconfig.me^"
+  - "@@||ipinfo.io^"
 dhcp:
   enabled: false
   interface_name: ""
@@ -1069,6 +1073,46 @@ EOF
     
     log_success "Sistema configurado para usar AdGuard Home como DNS"
     log_info "DNS del sistema: $LOCAL_IP (AdGuard Home)"
+}
+
+configure_adguard_duckdns_whitelist() {
+    log_step "Configurando whitelist de DuckDNS en AdGuard Home..."
+    
+    # Esperar unos segundos adicionales para que AdGuard Home esté completamente listo
+    sleep 5
+    
+    # Verificar que AdGuard Home esté respondiendo
+    local max_wait=60
+    local elapsed=0
+    
+    while [ $elapsed -lt $max_wait ]; do
+        if curl -s http://localhost:8080/ &>/dev/null; then
+            break
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    
+    if [ $elapsed -ge $max_wait ]; then
+        log_warning "AdGuard Home no está respondiendo, saltando configuración de whitelist"
+        log_info "Puedes configurar la whitelist manualmente más tarde con: ./manage.sh opción 10"
+        return
+    fi
+    
+    log_info "AdGuard Home está listo, configurando whitelist para DuckDNS..."
+    log_info "Esto evitará que se bloqueen las actualizaciones automáticas de IP"
+    
+    # La whitelist ya está incluida en la configuración inicial de AdGuard Home
+    # Solo necesitamos reiniciar el contenedor para asegurar que se aplique
+    
+    cd $WORK_DIR
+    docker-compose restart adguardhome
+    
+    # Esperar a que reinicie
+    sleep 10
+    
+    log_success "Whitelist de DuckDNS configurada en AdGuard Home"
+    log_info "Las actualizaciones automáticas de DuckDNS no serán bloqueadas"
 }
 
 # ========================================================================
@@ -1228,6 +1272,11 @@ main() {
     
     # Configuración final del DNS
     configure_system_dns
+    
+    # Configurar whitelist de DuckDNS si está habilitado
+    if [[ "$USE_DUCKDNS" == "true" ]]; then
+        configure_adguard_duckdns_whitelist
+    fi
     
     # Información final
     show_final_info

@@ -17,7 +17,7 @@ services:
 
   # WireGuard Easy - Interfaz web para WireGuard
   wg-easy:
-    image: weejewel/wg-easy:latest
+    image: ghcr.io/wg-easy/wg-easy:latest
     container_name: wg-easy
     restart: unless-stopped
     environment:
