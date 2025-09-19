@@ -609,7 +609,9 @@ configure_firewall() {
     ufw allow 80/tcp       # HTTP
     ufw allow 443/tcp      # HTTPS
     ufw allow 81/tcp       # Nginx Proxy Manager
-    ufw allow 8080/tcp     # Pi-hole
+    ufw allow 8080/tcp     # AdGuard Home
+    ufw allow 8443/tcp     # AdGuard Home HTTPS
+    ufw allow 3000/tcp     # AdGuard Home setup inicial
     
     log_success "Firewall configurado"
 }
@@ -626,7 +628,7 @@ configure_dns_resolution() {
     # Verificar si systemd-resolved está usando el puerto 53
     if lsof -i :53 | grep -q systemd-resolved; then
         log_warning "El servicio 'systemd-resolved' está usando el puerto 53."
-        log_info "Deteniendo y deshabilitando 'systemd-resolved' para liberar el puerto..."
+        log_info "Deteniendo y deshabilitando 'systemd-resolved' para liberar el puerto para AdGuard Home..."
         
         systemctl stop systemd-resolved
         systemctl disable systemd-resolved
@@ -638,9 +640,9 @@ configure_dns_resolution() {
         # Crear un resolv.conf temporal para que el sistema no se quede sin DNS
         echo "nameserver 1.1.1.1" > /etc/resolv.conf
         
-        log_success "Servicio 'systemd-resolved' deshabilitado y puerto 53 liberado."
+        log_success "Servicio 'systemd-resolved' deshabilitado y puerto 53 liberado para AdGuard Home."
     else
-        log_info "El puerto 53 parece estar libre y disponible para Pi-hole."
+        log_info "El puerto 53 parece estar libre y disponible para AdGuard Home."
     fi
 
     # Comprobación final para otros posibles servicios

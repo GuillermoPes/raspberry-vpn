@@ -73,8 +73,8 @@ docker-compose --version
 log_info "Creando directorios..."
 mkdir -p /opt/vpn-server
 mkdir -p /opt/vpn-server/wireguard-config
-mkdir -p /opt/vpn-server/pihole/etc-pihole
-mkdir -p /opt/vpn-server/pihole/etc-dnsmasq.d
+mkdir -p /opt/vpn-server/adguardhome/work
+mkdir -p /opt/vpn-server/adguardhome/conf
 mkdir -p /opt/vpn-server/unbound
 mkdir -p /opt/vpn-server/nginx-proxy-manager/data
 mkdir -p /opt/vpn-server/nginx-proxy-manager/letsencrypt
@@ -90,7 +90,9 @@ ufw allow 53/udp    # DNS
 ufw allow 80/tcp    # HTTP
 ufw allow 443/tcp   # HTTPS
 ufw allow 81/tcp    # Nginx Proxy Manager
-ufw allow 8080/tcp  # Pi-hole
+ufw allow 8080/tcp  # AdGuard Home
+ufw allow 8443/tcp  # AdGuard Home HTTPS
+ufw allow 3000/tcp  # AdGuard Home setup inicial
 
 # Configurar IP forwarding
 log_info "Configurando IP forwarding..."
@@ -115,7 +117,7 @@ echo "IP_PUBLICA=$PUBLIC_IP" >> /opt/vpn-server/.env
 
 log_info "Configuración completada!"
 log_warning "Recuerda:"
-log_warning "1. Cambiar la contraseña de Pi-hole en docker-compose.yml"
+log_warning "1. Configurar AdGuard Home accediendo a http://IP:3000 para la configuración inicial"
 log_warning "2. Configurar tu IP pública en SERVERURL del servicio WireGuard"
 log_warning "3. Abrir el puerto 51820/UDP en tu router"
 log_warning "4. Ejecutar 'docker-compose up -d' en /opt/vpn-server"
