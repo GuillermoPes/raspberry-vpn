@@ -402,6 +402,161 @@ show_public_ip() {
     fi
 }
 
+# Función para configurar DuckDNS cuando se detecta un dominio
+configure_duckdns_for_domain() {
+    local domain="$1"
+    local subdomain=$(echo "$domain" | sed 's/\.duckdns\.org$//')
+    
+    echo ""
+    echo -e "${CYAN}🦆 Dominio DuckDNS detectado: $domain${NC}"
+    echo ""
+    
+    # Verificar si ya existe configuración de DuckDNS
+    local existing_token=""
+    local existing_domain=""
+    
+    if [ -f .env ]; then
+        existing_token=$(grep "DUCKDNS_TOKEN=" .env 2>/dev/null | cut -d'=' -f2)
+        existing_domain=$(grep "DUCKDNS_DOMAIN=" .env 2>/dev/null | cut -d'=' -f2)
+    fi
+    
+    if [[ -n "$existing_token" && "$existing_domain" == "$subdomain" ]]; then
+        echo -e "${GREEN}✅ DuckDNS ya está configurado para este dominio${NC}"
+        echo -e "${YELLOW}Token actual: ${existing_token:0:8}...${NC}"
+        echo ""
+        echo -e "${CYAN}¿Quieres mantener la configuración actual? (Y/n):${NC}"
+        read -r keep_config
+        
+        if [[ ! "$keep_config" =~ ^[Nn]$ ]]; then
+            echo -e "${GREEN}Manteniendo configuración actual de DuckDNS${NC}"
+            return
+        fi
+    fi
+    
+    echo -e "${YELLOW}Para que DuckDNS funcione, necesitas configurar:${NC}"
+    echo "1. 📋 Token de DuckDNS"
+    echo "2. 🔄 Actualización automática de IP"
+    echo ""
+    
+    # Solicitar token de DuckDNS
+    while true; do
+        echo -e "${CYAN}Introduce tu token de DuckDNS:${NC}"
+        echo -e "${YELLOW}(Lo encuentras en: https://www.duckdns.org/install.jsp)${NC}"
+        echo -n "Token: "
+        read -r duckdns_token
+        
+        if [[ -z "$duckdns_token" ]]; then
+            echo -e "${RED}El token no puede estar vacío${NC}"
+            echo -e "${YELLOW}¿Quieres continuar sin DuckDNS? (y/N):${NC}"
+            read -r skip_duckdns
+            if [[ "$skip_duckdns" =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}Continuando sin configuración automática de DuckDNS${NC}"
+                return
+            fi
+            continue
+        fi
+        
+        # Validar formato básico del token (UUID)
+        if [[ ! "$duckdns_token" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]; then
+            echo -e "${YELLOW}⚠️  El token no parece tener el formato correcto de DuckDNS${NC}"
+            echo -e "${YELLOW}¿Continuar de todas formas? (y/N):${NC}"
+            read -r continue_anyway
+            if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+                continue
+            fi
+        fi
+        
+        echo ""
+        echo -e "${BLUE}🧪 Probando conexión con DuckDNS...${NC}"
+        
+        # Test de la API de DuckDNS
+        test_response=$(curl -s "https://www.duckdns.org/update?domains=$subdomain&token=$duckdns_token&ip=" || echo "FAILED")
+        
+        if [[ "$test_response" == "OK" ]]; then
+            echo -e "${GREEN}✅ Token válido y conexión exitosa${NC}"
+            break
+        else
+            echo -e "${RED}❌ Error al conectar con DuckDNS${NC}"
+            echo -e "${YELLOW}Respuesta: $test_response${NC}"
+            echo ""
+            echo -e "${CYAN}¿Quieres:${NC}"
+            echo "1. Intentar con otro token"
+            echo "2. Continuar de todas formas (el token se guardará)"
+            echo "3. Saltar configuración de DuckDNS"
+            echo -n "Opción (1-3): "
+            read -r retry_choice
+            
+            case $retry_choice in
+                1) continue ;;
+                2) break ;;
+                3) return ;;
+                *) continue ;;
+            esac
+        fi
+    done
+    
+    echo ""
+    echo -e "${GREEN}💾 Guardando configuración de DuckDNS...${NC}"
+    
+    # Actualizar o añadir configuración en .env
+    if [ -f .env ]; then
+        # Eliminar líneas existentes de DuckDNS
+        sed -i '/DUCKDNS_TOKEN=/d' .env
+        sed -i '/DUCKDNS_DOMAIN=/d' .env
+        
+        # Añadir nueva configuración
+        echo "DUCKDNS_TOKEN=$duckdns_token" >> .env
+        echo "DUCKDNS_DOMAIN=$subdomain" >> .env
+    fi
+    
+    # Configurar cron job para actualización automática
+    echo -e "${BLUE}⏰ Configurando actualización automática cada 5 minutos...${NC}"
+    
+    # Crear script de actualización
+    cat > /opt/vpn-server/duckdns_update.sh << EOF
+#!/bin/bash
+# Script de actualización automática de DuckDNS
+# Generado automáticamente por raspberry-vpn
+
+DOMAIN="$subdomain"
+TOKEN="$duckdns_token"
+
+# Obtener IP pública actual
+CURRENT_IP=\$(curl -s --max-time 10 ifconfig.me 2>/dev/null)
+
+if [[ -n "\$CURRENT_IP" ]]; then
+    # Actualizar DuckDNS
+    RESPONSE=\$(curl -s "https://www.duckdns.org/update?domains=\$DOMAIN&token=\$TOKEN&ip=\$CURRENT_IP")
+    
+    if [[ "\$RESPONSE" == "OK" ]]; then
+        echo "\$(date): IP actualizada correctamente: \$CURRENT_IP"
+    else
+        echo "\$(date): Error al actualizar IP: \$RESPONSE"
+    fi
+else
+    echo "\$(date): No se pudo obtener la IP pública"
+fi
+EOF
+    
+    chmod +x /opt/vpn-server/duckdns_update.sh
+    
+    # Añadir cron job (eliminar existente primero)
+    crontab -l 2>/dev/null | grep -v "duckdns_update.sh" | crontab -
+    (crontab -l 2>/dev/null; echo "*/5 * * * * /opt/vpn-server/duckdns_update.sh >> /var/log/duckdns_update.log 2>&1") | crontab -
+    
+    echo ""
+    echo -e "${GREEN}✅ DuckDNS configurado exitosamente${NC}"
+    echo ""
+    echo -e "${BLUE}📋 Configuración aplicada:${NC}"
+    echo "• 🌐 Dominio: $domain"
+    echo "• 🔑 Token: ${duckdns_token:0:8}... (guardado en .env)"
+    echo "• ⏰ Actualización: Cada 5 minutos automáticamente"
+    echo "• 📝 Logs: /var/log/duckdns_update.log"
+    echo ""
+    echo -e "${YELLOW}💡 El script ejecutará la primera actualización ahora...${NC}"
+    /opt/vpn-server/duckdns_update.sh
+}
+
 # Función para cambiar IP/Dominio del servidor
 change_server_ip() {
     echo -e "${CYAN}=== Cambio de IP/Dominio del Servidor ===${NC}"
@@ -446,10 +601,18 @@ change_server_ip() {
         2)
             echo -n "Introduce tu dominio (ej: miservidor.duckdns.org): "
             read -r new_server
+            # Verificar si es DuckDNS y configurar token
+            if [[ "$new_server" =~ \.duckdns\.org$ ]]; then
+                configure_duckdns_for_domain "$new_server"
+            fi
             ;;
         3)
             echo -n "Introduce IP pública o dominio: "
             read -r new_server
+            # Verificar si es DuckDNS y configurar token
+            if [[ "$new_server" =~ \.duckdns\.org$ ]]; then
+                configure_duckdns_for_domain "$new_server"
+            fi
             ;;
         0)
             echo "Operación cancelada"
@@ -487,23 +650,51 @@ change_server_ip() {
         
         echo -e "${GREEN}Configuración actualizada en .env${NC}"
         
-        # Preguntar si reiniciar servicios
+        # Reiniciar servicios para aplicar cambios
         echo ""
-        echo -e "${YELLOW}¿Quieres reiniciar WG-Easy para aplicar los cambios? (y/N)${NC}"
+        echo -e "${YELLOW}Para aplicar los cambios es necesario reiniciar WG-Easy${NC}"
         echo -e "${YELLOW}(Los clientes existentes necesitarán regenerar sus configuraciones)${NC}"
+        echo -e "${CYAN}¿Reiniciar WG-Easy ahora? (Y/n):${NC}"
         read -r restart_confirm
         
-        if [[ "$restart_confirm" =~ ^[Yy]$ ]]; then
-            echo -e "${GREEN}Reiniciando WG-Easy...${NC}"
-            docker-compose restart wg-easy
-            echo ""
-            echo -e "${GREEN}¡Cambio completado!${NC}"
-            echo -e "${YELLOW}Recuerda:${NC}"
-            echo "• Los clientes VPN existentes necesitarán configuraciones actualizadas"
-            echo "• Puedes regenerar los códigos QR desde WG-Easy: http://IP:51821"
-            echo "• Si usas router, asegúrate que el puerto 51820/UDP sigue abierto"
+        if [[ ! "$restart_confirm" =~ ^[Nn]$ ]]; then
+            echo -e "${GREEN}Reiniciando WG-Easy para aplicar cambios...${NC}"
+            echo -e "${BLUE}• Deteniendo WG-Easy...${NC}"
+            docker-compose down wg-easy
+            
+            echo -e "${BLUE}• Iniciando WG-Easy con nueva configuración...${NC}"
+            docker-compose up -d wg-easy
+            
+            # Esperar a que inicie
+            echo -e "${YELLOW}Esperando que WG-Easy inicie...${NC}"
+            sleep 8
+            
+            # Verificar estado
+            if docker ps | grep wg-easy | grep -q "Up"; then
+                echo ""
+                echo -e "${GREEN}✅ ¡WG-Easy reiniciado correctamente!${NC}"
+                echo ""
+                echo -e "${BLUE}📋 Nueva configuración aplicada:${NC}"
+                echo "• 🌐 Servidor: $new_server"
+                echo "• 🔗 Interfaz web: http://IP:51821"
+                echo "• 🔌 Puerto VPN: 51820/UDP"
+                echo ""
+                echo -e "${YELLOW}📱 Importante:${NC}"
+                echo "• Los clientes VPN existentes necesitarán configuraciones actualizadas"
+                echo "• Regenera los códigos QR desde la interfaz web"
+                echo "• Si usas router, verifica que el puerto 51820/UDP sigue abierto"
+            else
+                echo ""
+                echo -e "${RED}❌ Error: WG-Easy no se inició correctamente${NC}"
+                echo -e "${YELLOW}Revisa los logs: docker logs wg-easy${NC}"
+                echo -e "${YELLOW}La configuración se guardó, pero hay un problema con el servicio${NC}"
+            fi
         else
-            echo -e "${YELLOW}Configuración guardada. Reinicia WG-Easy manualmente cuando estés listo.${NC}"
+            echo ""
+            echo -e "${YELLOW}⚠️  Configuración guardada pero no aplicada${NC}"
+            echo -e "${CYAN}Para aplicar los cambios ejecuta:${NC}"
+            echo "docker-compose down wg-easy"
+            echo "docker-compose up -d wg-easy"
         fi
     else
         echo "Cambio cancelado"

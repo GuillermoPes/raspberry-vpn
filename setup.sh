@@ -678,6 +678,95 @@ configure_dns_resolution() {
     log_success "Resolución DNS configurada correctamente para la instalación."
 }
 
+configure_automatic_security_updates() {
+    log_step "Configurando actualizaciones automáticas de seguridad..."
+    
+    # Instalar unattended-upgrades si no está instalado
+    if ! dpkg -l | grep -q unattended-upgrades; then
+        apt update -qq
+        apt install -y unattended-upgrades
+    fi
+    
+    # Crear configuración de actualizaciones automáticas
+    cat > /etc/apt/apt.conf.d/50unattended-upgrades << EOF
+// Configuración automática generada por raspberry-vpn setup
+// $(date)
+
+// Solo actualizaciones de seguridad automáticas
+Unattended-Upgrade::Allowed-Origins {
+    "\${distro_id}:\${distro_codename}-security";
+    // Descomentar la siguiente línea para también actualizar actualizaciones importantes:
+    // "\${distro_id}:\${distro_codename}-updates";
+};
+
+// Lista de paquetes que nunca se actualizarán automáticamente
+Unattended-Upgrade::Package-Blacklist {
+    // "libc6";
+    // "libc6-dev";
+    // "libc6-i686";
+    // "docker.io";
+    // "docker-ce";
+};
+
+// No reiniciar automáticamente (importante para servidores)
+Unattended-Upgrade::Automatic-Reboot "false";
+
+// Si se requiere reinicio, avisar pero no hacerlo
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+
+// Eliminar paquetes no utilizados automáticamente
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "false";
+
+// Logging y configuraciones adicionales
+Unattended-Upgrade::InstallOnShutdown "false";
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";
+EOF
+    
+    # Configurar frecuencia: verificar diariamente, instalar los domingos
+    cat > /etc/apt/apt.conf.d/20auto-upgrades << EOF
+// Configuración de frecuencia - Verificar diariamente, aplicar domingos a las 4 AM
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::AutocleanInterval "7";
+APT::Periodic::Unattended-Upgrade "7";
+EOF
+    
+    # Crear tarea cron específica para ejecutar domingos a las 4 AM
+    cat > /etc/cron.d/unattended-upgrades-custom << EOF
+# Ejecutar actualizaciones de seguridad automáticas los domingos a las 4:00 AM
+# m h dom mon dow user command
+0 4 * * 0 root /usr/bin/unattended-upgrade
+EOF
+    
+    # Deshabilitar el timer systemd por defecto para usar nuestro cron
+    systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+    systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+    
+    # Habilitar el servicio pero sin timer automático
+    systemctl enable unattended-upgrades
+    systemctl start unattended-upgrades
+    
+    # Mostrar resumen de configuración
+    echo ""
+    echo -e "${BLUE}📋 Resumen de actualizaciones automáticas:${NC}"
+    echo -e "${GREEN}✅ Solo actualizaciones de seguridad críticas${NC}"
+    echo -e "${GREEN}✅ NO reinicia automáticamente el sistema${NC}"
+    echo -e "${GREEN}✅ Limpia paquetes no utilizados semanalmente${NC}"
+    echo -e "${GREEN}✅ Verifica actualizaciones diariamente${NC}"
+    echo -e "${GREEN}✅ Instala actualizaciones: Domingos a las 4:00 AM${NC}"
+    echo -e "${GREEN}✅ Docker protegido de actualizaciones automáticas${NC}"
+    echo ""
+    echo -e "${YELLOW}💡 Para actualizaciones completas del sistema, usa:${NC}"
+    echo -e "${CYAN}   ./manage.sh → opción 14 (Actualizar sistema Linux)${NC}"
+    echo ""
+    echo -e "${BLUE}📝 Logs de actualizaciones en: /var/log/unattended-upgrades/${NC}"
+    
+    log_success "Actualizaciones automáticas configuradas para domingos 4:00 AM"
+}
+
 configure_system() {
     log_step "Configurando sistema..."
     
@@ -689,6 +778,9 @@ configure_system() {
     # Configurar fail2ban
     systemctl enable fail2ban
     systemctl start fail2ban
+    
+    # Configurar actualizaciones automáticas de seguridad
+    configure_automatic_security_updates
     
     log_success "Sistema configurado"
 }
