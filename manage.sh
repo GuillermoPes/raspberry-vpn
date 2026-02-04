@@ -46,9 +46,19 @@ check_docker() {
         exit 1
     fi
     
-    if ! command -v docker-compose &> /dev/null; then
+    # Verificar docker compose (plugin moderno) o docker_compose (legacy)
+    if ! docker compose version &> /dev/null && ! command -v docker_compose &> /dev/null; then
         echo -e "${RED}Docker Compose no está instalado${NC}"
         exit 1
+    fi
+}
+
+# Función helper para ejecutar docker compose (compatible con ambas versiones)
+docker_compose() {
+    if docker compose version &> /dev/null; then
+        docker compose "$@"
+    else
+        docker_compose "$@"
     fi
 }
 
@@ -64,7 +74,7 @@ change_to_work_dir() {
 # Función para mostrar estado de servicios
 show_status() {
     echo -e "${BLUE}=== Estado de Servicios ===${NC}"
-    docker-compose ps
+    docker_compose ps
     echo ""
     echo -e "${BLUE}=== Uso de recursos ===${NC}"
     docker stats --no-stream --format "table {{.Container}}	{{.CPUPerc}}	{{.MemUsage}}	{{.NetIO}}"
@@ -78,6 +88,8 @@ restart_services() {
     echo "3. Solo AdGuard Home"
     echo "4. Solo Portainer"
     echo "5. Solo Nginx Proxy Manager"
+    echo "6. Solo n8n"
+    echo "7. Solo Cloudflare Tunnel"
     echo "0. Volver al menú"
     echo -n "Selecciona: "
     read restart_choice
@@ -85,24 +97,31 @@ restart_services() {
     case $restart_choice in
         1)
             echo -e "${GREEN}Reiniciando todos los servicios...${NC}"
-            docker-compose restart
+            docker_compose restart
             ;;
         2)
             echo -e "${GREEN}Reiniciando WG-Easy...${NC}"
-            docker-compose restart wg-easy
+            docker_compose restart wg-easy
             ;;
         3)
-            echo -e "${GREEN}Reiniciando AdGuard Home...${NC}
-"
-            docker-compose restart adguardhome
+            echo -e "${GREEN}Reiniciando AdGuard Home...${NC}"
+            docker_compose restart adguardhome
             ;;
         4)
             echo -e "${GREEN}Reiniciando Portainer...${NC}"
-            docker-compose restart portainer
+            docker_compose restart portainer
             ;;
         5)
             echo -e "${GREEN}Reiniciando Nginx Proxy Manager...${NC}"
-            docker-compose restart nginx-proxy-manager
+            docker_compose restart nginx-proxy-manager 2>/dev/null || echo -e "${YELLOW}Nginx no está instalado${NC}"
+            ;;
+        6)
+            echo -e "${GREEN}Reiniciando n8n...${NC}"
+            docker_compose restart n8n 2>/dev/null || echo -e "${YELLOW}n8n no está instalado${NC}"
+            ;;
+        7)
+            echo -e "${GREEN}Reiniciando Cloudflare Tunnel...${NC}"
+            docker_compose restart cloudflared 2>/dev/null || echo -e "${YELLOW}Cloudflare Tunnel no está instalado${NC}"
             ;;
         0)
             return
@@ -121,25 +140,33 @@ show_logs() {
     echo "3. AdGuard Home"
     echo "4. Portainer"
     echo "5. Nginx Proxy Manager"
+    echo "6. n8n"
+    echo "7. Cloudflare Tunnel"
     echo "0. Volver al menú"
     echo -n "Selecciona: "
     read log_choice
 
     case $log_choice in
         1)
-            docker-compose logs -f
+            docker_compose logs -f
             ;;
         2)
-            docker-compose logs -f wg-easy
+            docker_compose logs -f wg-easy
             ;;
         3)
-            docker-compose logs -f adguardhome
+            docker_compose logs -f adguardhome
             ;;
         4)
-            docker-compose logs -f portainer
+            docker_compose logs -f portainer
             ;;
         5)
-            docker-compose logs -f nginx-proxy-manager
+            docker_compose logs -f nginx-proxy-manager
+            ;;
+        6)
+            docker_compose logs -f n8n
+            ;;
+        7)
+            docker_compose logs -f cloudflared
             ;;
         0)
             return
@@ -153,8 +180,8 @@ show_logs() {
 # Función para actualizar servicios
 update_services() {
     echo -e "${GREEN}Actualizando servicios...${NC}"
-    docker-compose pull
-    docker-compose up -d
+    docker_compose pull
+    docker_compose up -d
     echo -e "${GREEN}Servicios actualizados${NC}"
 }
 
@@ -190,11 +217,11 @@ migrate_wg_easy() {
     
     # Detener el contenedor actual
     echo -e "${YELLOW}Deteniendo WG-Easy actual...${NC}"
-    docker-compose stop wg-easy
+    docker_compose stop wg-easy
     
     # Eliminar el contenedor e imagen antigua
     echo -e "${YELLOW}Eliminando contenedor e imagen antigua...${NC}"
-    docker-compose rm -f wg-easy
+    docker_compose rm -f wg-easy
     docker rmi weejewel/wg-easy:latest 2>/dev/null || true
     
     # Actualizar docker-compose.yml con la nueva imagen
@@ -208,11 +235,11 @@ migrate_wg_easy() {
     
     # Descargar nueva imagen oficial
     echo -e "${YELLOW}Descargando nueva imagen oficial...${NC}"
-    docker-compose pull wg-easy
+    docker_compose pull wg-easy
     
     # Iniciar con la nueva imagen
     echo -e "${YELLOW}Iniciando WG-Easy con la imagen mantenida...${NC}"
-    docker-compose up -d wg-easy
+    docker_compose up -d wg-easy
     
     # Migrar formato de contraseña si es necesario
     echo -e "${YELLOW}Verificando formato de contraseña...${NC}"
@@ -247,7 +274,7 @@ migrate_wg_easy() {
     else
         echo -e "${RED}❌ Error durante la migración${NC}"
         echo "El servicio no se inició correctamente. Revisa los logs:"
-        echo "docker-compose logs wg-easy"
+        echo "docker_compose logs wg-easy"
     fi
 }
 
@@ -358,8 +385,8 @@ change_wg_easy_password() {
     
     # Reiniciar WG-Easy para aplicar cambios
     echo -e "${YELLOW}Reiniciando WG-Easy para aplicar cambios...${NC}"
-    docker-compose down wg-easy
-    docker-compose up -d wg-easy
+    docker_compose down wg-easy
+    docker_compose up -d wg-easy
     
     # Esperar a que inicie
     echo -e "${YELLOW}Esperando que WG-Easy inicie...${NC}"
@@ -660,10 +687,10 @@ change_server_ip() {
         if [[ ! "$restart_confirm" =~ ^[Nn]$ ]]; then
             echo -e "${GREEN}Reiniciando WG-Easy para aplicar cambios...${NC}"
             echo -e "${BLUE}• Deteniendo WG-Easy...${NC}"
-            docker-compose down wg-easy
+            docker_compose down wg-easy
             
             echo -e "${BLUE}• Iniciando WG-Easy con nueva configuración...${NC}"
-            docker-compose up -d wg-easy
+            docker_compose up -d wg-easy
             
             # Esperar a que inicie
             echo -e "${YELLOW}Esperando que WG-Easy inicie...${NC}"
@@ -693,8 +720,8 @@ change_server_ip() {
             echo ""
             echo -e "${YELLOW}⚠️  Configuración guardada pero no aplicada${NC}"
             echo -e "${CYAN}Para aplicar los cambios ejecuta:${NC}"
-            echo "docker-compose down wg-easy"
-            echo "docker-compose up -d wg-easy"
+            echo "docker_compose down wg-easy"
+            echo "docker_compose up -d wg-easy"
         fi
     else
         echo "Cambio cancelado"
@@ -782,7 +809,7 @@ configure_adguard_whitelist() {
     echo -e "${GREEN}Whitelist configurada correctamente${NC}"
     echo ""
     echo -e "${YELLOW}Reiniciando AdGuard Home para aplicar cambios...${NC}"
-    docker-compose restart adguardhome
+    docker_compose restart adguardhome
     
     echo ""
     echo -e "${GREEN}¡Configuración completada!${NC}"
@@ -815,7 +842,7 @@ show_system_info() {
     echo ""
     echo -e "${GREEN}Servicios en ejecución:${NC}
 "
-    docker-compose ps --format table
+    docker_compose ps --format table
 }
 
 # Función para actualizar sistema Linux
@@ -936,7 +963,7 @@ update_system_linux() {
     # Verificar estado de servicios Docker
     echo ""
     echo -e "${BLUE}Verificando servicios Docker...${NC}"
-    docker-compose ps --format table
+    docker_compose ps --format table
 }
 
 # Función para detener servicios
@@ -945,7 +972,7 @@ stop_services() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         echo -e "${RED}Deteniendo servicios...${NC}"
-        docker-compose down
+        docker_compose down
         echo -e "${GREEN}Servicios detenidos${NC}"
     fi
 }
@@ -953,7 +980,7 @@ stop_services() {
 # Función para iniciar servicios
 start_services() {
     echo -e "${GREEN}Iniciando servicios...${NC}"
-    docker-compose up -d
+    docker_compose up -d
     echo -e "${GREEN}Servicios iniciados${NC}"
 }
 
@@ -1001,8 +1028,8 @@ migrate_password_format() {
         log_success "Formato de contraseña migrado a hash bcrypt"
         
         # Reiniciar para aplicar cambios (down/up para recargar variables)
-        docker-compose down wg-easy
-        docker-compose up -d wg-easy
+        docker_compose down wg-easy
+        docker_compose up -d wg-easy
         sleep 5
     else
         log_info "Formato de contraseña ya está actualizado"
@@ -1065,7 +1092,7 @@ check_watchtower_status() {
     echo ""
     echo -e "${CYAN}💡 Opciones:${NC}"
     echo "1. Usar opción 4 del menú para actualizar todos los servicios"
-    echo "2. Forzar actualización de Watchtower: docker-compose restart watchtower"
+    echo "2. Forzar actualización de Watchtower: docker_compose restart watchtower"
     echo "3. Cambiar intervalo de Watchtower editando .env (WATCHTOWER_POLL_INTERVAL)"
     
     echo ""
@@ -1074,8 +1101,8 @@ check_watchtower_status() {
     
     if [[ "$force_update" =~ ^[Yy]$ ]]; then
         echo -e "${GREEN}Forzando actualización de todos los servicios...${NC}"
-        docker-compose pull
-        docker-compose up -d
+        docker_compose pull
+        docker_compose up -d
         echo -e "${GREEN}Actualización completada${NC}"
     fi
 }

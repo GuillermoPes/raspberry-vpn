@@ -29,7 +29,6 @@ INSTALL_USER=$(logname 2>/dev/null || echo $SUDO_USER)
 PROJECT_NAME="raspberry-vpn"
 
 # Variables globales para configuración
-
 WG_EASY_PASSWORD=""
 TIMEZONE="Europe/Madrid"
 WIREGUARD_PEERS="5"
@@ -39,6 +38,21 @@ USE_DOMAIN="false"
 USE_DUCKDNS="false"
 DUCKDNS_DOMAIN=""
 DUCKDNS_TOKEN=""
+
+# Variables para servicios opcionales
+INSTALL_N8N="true"
+N8N_USER="admin"
+N8N_PASSWORD=""
+N8N_HOST="localhost"
+N8N_WEBHOOK_URL=""
+N8N_PROTOCOL="http"
+N8N_SECURE_COOKIE="false"
+INSTALL_NGINX="false"
+INSTALL_CLOUDFLARE_TUNNEL="false"
+CLOUDFLARE_TUNNEL_TOKEN=""
+
+# Variable para hash de contraseña WG-Easy
+WG_EASY_PASSWORD_HASH=""
 
 # ========================================================================
 # FUNCIONES AUXILIARES
@@ -254,90 +268,296 @@ collect_timezone() {
 
 collect_network_config() {
     clear
-    echo -e "${CYAN}🌐 Configuración de red${NC}"
-    echo ""
-    echo "Para que los clientes VPN puedan conectarse, necesito conocer"
-    echo "tu IP pública o dominio."
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              🌐 CONFIGURACIÓN DE RED Y ACCESO REMOTO                 ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
     if [[ -n "$PUBLIC_IP" ]]; then
-        echo -e "${GREEN}IP pública detectada: $PUBLIC_IP${NC}"
-        echo ""
-        echo "Opciones:"
-        echo "1. Usar IP pública detectada ($PUBLIC_IP)"
-        echo "2. Introducir dominio personalizado (recomendado)"
-        echo "3. Introducir IP/dominio manualmente"
-        echo ""
-        echo -n "Selecciona una opción (1-3) [1]: "
-        read -r network_choice
-        
-        case "${network_choice:-1}" in
-            1)
-                DOMAIN_NAME="$PUBLIC_IP"
-                USE_DOMAIN="false"
-                ;;
-            2)
-                echo ""
-                echo "Servicios DDNS recomendados:"
-                echo "• DuckDNS (duckdns.org) - Gratuito"
-                echo "• No-IP (noip.com) - Gratuito"
-                echo "• Cloudflare - Gratuito"
-                echo ""
-                echo -n "Introduce tu dominio (ej: miservidor.duckdns.org): "
-                read -r DOMAIN_NAME
-                USE_DOMAIN="true"
-                
-                # Detectar DuckDNS y pedir token automáticamente
-                if [[ "$DOMAIN_NAME" =~ duckdns\.org$ ]]; then
-                    configure_duckdns_auto_update
-                fi
-                ;;
-            3)
-                echo -n "Introduce IP pública o dominio: "
-                read -r DOMAIN_NAME
-                if [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    USE_DOMAIN="false"
-                else
-                    USE_DOMAIN="true"
-                    
-                    # Detectar DuckDNS y pedir token automáticamente
-                    if [[ "$DOMAIN_NAME" =~ duckdns\.org$ ]]; then
-                        configure_duckdns_auto_update
-                    fi
-                fi
-                ;;
-            *)
-                DOMAIN_NAME="$PUBLIC_IP"
-                USE_DOMAIN="false"
-                ;;
-        esac
+        echo -e "${GREEN}✓ IP pública detectada: $PUBLIC_IP${NC}"
     else
-        echo -e "${YELLOW}No se pudo detectar tu IP pública automáticamente${NC}"
-        echo ""
-        echo -n "Introduce tu IP pública o dominio: "
-        read -r DOMAIN_NAME
-        
-        if [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            USE_DOMAIN="false"
-        else
-            USE_DOMAIN="true"
-            
-                            # Detectar DuckDNS y pedir token automáticamente
-                if [[ "$DOMAIN_NAME" == *"duckdns.org"* ]]; then
-                    configure_duckdns_auto_update
-                fi
-        fi
+        echo -e "${YELLOW}⚠ No se pudo detectar la IP pública automáticamente${NC}"
     fi
+    echo ""
     
-    if [[ -z "$DOMAIN_NAME" ]]; then
-        log_error "Debe introducir una IP pública o dominio"
-        collect_network_config
+    echo -e "${YELLOW}¿Cómo quieres acceder a tu servidor desde Internet?${NC}"
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "  ${GREEN}1.${NC} 📍 ${WHITE}IP Pública directa${NC}"
+    echo -e "     └─ Usar tu IP actual: ${CYAN}$PUBLIC_IP${NC}"
+    echo -e "     └─ ${YELLOW}⚠ Cambiará si tu ISP te asigna IP dinámica${NC}"
+    echo ""
+    echo -e "  ${GREEN}2.${NC} 🦆 ${WHITE}DuckDNS (DDNS gratuito)${NC}"
+    echo -e "     └─ Dominio gratis tipo: ${CYAN}tuservidor.duckdns.org${NC}"
+    echo -e "     └─ ${GREEN}✓ Actualización automática de IP${NC}"
+    echo -e "     └─ ${GREEN}✓ Ideal si tu ISP cambia tu IP${NC}"
+    echo ""
+    echo -e "  ${GREEN}3.${NC} ☁️  ${WHITE}Cloudflare Tunnel (Recomendado para n8n)${NC}"
+    echo -e "     └─ Acceso HTTPS seguro sin abrir puertos"
+    echo -e "     └─ ${GREEN}✓ Tu IP real queda oculta${NC}"
+    echo -e "     └─ ${GREEN}✓ HTTPS automático y gratuito${NC}"
+    echo -e "     └─ ${YELLOW}Requiere: dominio propio + cuenta Cloudflare${NC}"
+    echo ""
+    echo -e "  ${GREEN}4.${NC} 🔧 ${WHITE}Dominio personalizado${NC}"
+    echo -e "     └─ Usar tu propio dominio (No-IP, Cloudflare DNS, etc.)"
+    echo ""
+    echo -e "  ${GREEN}5.${NC} 🏠 ${WHITE}Solo acceso local + VPN${NC}"
+    echo -e "     └─ Sin configurar dominio externo"
+    echo -e "     └─ ${GREEN}✓ Acceso remoto solo vía WireGuard VPN${NC}"
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -n "Selecciona una opción (1-5) [2]: "
+    read -r network_choice
+    
+    case "${network_choice:-2}" in
+        1)
+            # IP Pública directa
+            if [[ -z "$PUBLIC_IP" ]]; then
+                echo ""
+                echo -n "Introduce tu IP pública: "
+                read -r PUBLIC_IP
+            fi
+            DOMAIN_NAME="$PUBLIC_IP"
+            USE_DOMAIN="false"
+            USE_DUCKDNS="false"
+            log_success "Configurado con IP pública: $DOMAIN_NAME"
+            log_warning "Recuerda: si tu IP cambia, tendrás que reconfigurar los clientes VPN"
+            ;;
+        2)
+            # DuckDNS
+            configure_duckdns_setup
+            ;;
+        3)
+            # Cloudflare Tunnel
+            configure_cloudflare_setup
+            ;;
+        4)
+            # Dominio personalizado
+            echo ""
+            echo -e "${CYAN}Introduce tu dominio personalizado:${NC}"
+            echo -e "${YELLOW}Ejemplos: vpn.midominio.com, miservidor.noip.com${NC}"
+            echo ""
+            echo -n "Dominio: "
+            read -r DOMAIN_NAME
+            USE_DOMAIN="true"
+            USE_DUCKDNS="false"
+            
+            if [[ -z "$DOMAIN_NAME" ]]; then
+                log_error "Debes introducir un dominio"
+                collect_network_config
+                return
+            fi
+            
+            log_success "Configurado con dominio: $DOMAIN_NAME"
+            log_info "Asegúrate de que el dominio apunte a tu IP pública"
+            ;;
+        5)
+            # Solo local + VPN
+            DOMAIN_NAME="$PUBLIC_IP"
+            if [[ -z "$DOMAIN_NAME" ]]; then
+                DOMAIN_NAME=$(hostname -I | awk '{print $1}')
+            fi
+            USE_DOMAIN="false"
+            USE_DUCKDNS="false"
+            log_success "Configurado para acceso local + VPN"
+            log_info "Podrás acceder remotamente conectándote primero a la VPN"
+            ;;
+        *)
+            # Por defecto: DuckDNS
+            configure_duckdns_setup
+            ;;
+    esac
+    
+    echo ""
+    press_enter
+}
+
+configure_duckdns_setup() {
+    clear
+    echo -e "${CYAN}🦆 Configuración de DuckDNS${NC}"
+    echo ""
+    echo "DuckDNS es un servicio DDNS gratuito que te permite tener un dominio"
+    echo "que siempre apunta a tu IP pública, aunque esta cambie."
+    echo ""
+    echo -e "${YELLOW}¿Ya tienes un dominio DuckDNS?${NC}"
+    echo ""
+    echo "1. Sí, ya tengo uno configurado"
+    echo "2. No, necesito crear uno"
+    echo ""
+    echo -n "Selecciona (1-2) [1]: "
+    read -r duckdns_choice
+    
+    case "${duckdns_choice:-1}" in
+        2)
+            echo ""
+            echo -e "${CYAN}Para crear tu dominio DuckDNS:${NC}"
+            echo "1. Ve a ${GREEN}https://www.duckdns.org/${NC}"
+            echo "2. Inicia sesión con Google, GitHub, Twitter, etc."
+            echo "3. Crea un subdominio (ej: miservidor)"
+            echo "4. Copia tu token (aparece arriba de la página)"
+            echo ""
+            echo -e "${YELLOW}Presiona Enter cuando hayas creado tu dominio...${NC}"
+            read
+            ;;
+    esac
+    
+    echo ""
+    echo -n "Introduce tu subdominio DuckDNS (sin .duckdns.org): "
+    read -r DUCKDNS_DOMAIN
+    
+    if [[ -z "$DUCKDNS_DOMAIN" ]]; then
+        log_error "Debes introducir un subdominio"
+        configure_duckdns_setup
         return
     fi
     
-    log_success "Configuración de red: $DOMAIN_NAME"
+    # Limpiar el dominio si el usuario puso el dominio completo
+    DUCKDNS_DOMAIN=$(echo "$DUCKDNS_DOMAIN" | sed 's/\.duckdns\.org$//')
+    
+    DOMAIN_NAME="${DUCKDNS_DOMAIN}.duckdns.org"
+    USE_DOMAIN="true"
+    
     echo ""
-    press_enter
+    log_info "Dominio configurado: $DOMAIN_NAME"
+    echo ""
+    
+    # Pedir token
+    configure_duckdns_auto_update
+}
+
+configure_cloudflare_setup() {
+    clear
+    echo -e "${CYAN}☁️  Configuración de Cloudflare${NC}"
+    echo ""
+    echo "Cloudflare ofrece dos opciones para acceder a tu servidor:"
+    echo ""
+    echo -e "${GREEN}1.${NC} ${WHITE}Cloudflare DNS + Dominio propio${NC}"
+    echo "   └─ Tu dominio apunta a tu IP pública"
+    echo "   └─ Necesitas abrir puertos en el router"
+    echo "   └─ Puedes usar Nginx Proxy Manager para HTTPS"
+    echo ""
+    echo -e "${GREEN}2.${NC} ${WHITE}Cloudflare Tunnel (Zero Trust)${NC} ${CYAN}← Recomendado${NC}"
+    echo "   └─ Túnel seguro sin abrir puertos"
+    echo "   └─ HTTPS automático"
+    echo "   └─ Tu IP real queda oculta"
+    echo ""
+    echo -n "Selecciona (1-2) [2]: "
+    read -r cf_choice
+    
+    case "${cf_choice:-2}" in
+        1)
+            # Cloudflare DNS tradicional
+            echo ""
+            echo -n "Introduce tu dominio (ej: vpn.midominio.com): "
+            read -r DOMAIN_NAME
+            USE_DOMAIN="true"
+            USE_DUCKDNS="false"
+            INSTALL_CLOUDFLARE_TUNNEL="false"
+            
+            log_success "Dominio configurado: $DOMAIN_NAME"
+            log_info "Asegúrate de que el registro DNS en Cloudflare apunte a tu IP"
+            log_info "Se recomienda instalar Nginx Proxy Manager para HTTPS"
+            INSTALL_NGINX="true"
+            ;;
+        2)
+            # Cloudflare Tunnel
+            echo ""
+            echo -e "${CYAN}Para configurar Cloudflare Tunnel necesitas:${NC}"
+            echo "1. Una cuenta en Cloudflare (gratuita)"
+            echo "2. Un dominio añadido a Cloudflare"
+            echo "3. Crear un túnel en Zero Trust"
+            echo ""
+            echo -e "${YELLOW}¿Ya tienes todo esto configurado? (y/N):${NC} "
+            read -r has_tunnel
+            
+            if [[ ! "$has_tunnel" =~ ^[Yy]$ ]]; then
+                echo ""
+                echo -e "${CYAN}Pasos para configurar Cloudflare Tunnel:${NC}"
+                echo ""
+                echo "1. Ve a ${GREEN}https://dash.cloudflare.com/${NC}"
+                echo "   └─ Crea una cuenta si no tienes"
+                echo "   └─ Añade tu dominio"
+                echo ""
+                echo "2. Ve a ${GREEN}https://one.dash.cloudflare.com/${NC}"
+                echo "   └─ Access → Tunnels → Create a tunnel"
+                echo "   └─ Nombre: raspberry-vpn"
+                echo "   └─ Copia el token (empieza con eyJ...)"
+                echo ""
+                echo -e "${YELLOW}Presiona Enter cuando tengas el token...${NC}"
+                read
+            fi
+            
+            # Pedir dominio para la VPN (WireGuard sigue necesitando un dominio/IP)
+            echo ""
+            echo -n "Introduce tu dominio principal (ej: midominio.com): "
+            read -r user_domain
+            
+            if [[ -z "$user_domain" ]]; then
+                log_error "Necesitas un dominio para continuar"
+                configure_cloudflare_setup
+                return
+            fi
+            
+            # Para WireGuard, usamos un subdominio o la IP
+            echo ""
+            echo "Para la VPN (WireGuard), ¿qué quieres usar?"
+            echo "1. Subdominio: vpn.$user_domain"
+            echo "2. Tu IP pública: $PUBLIC_IP"
+            echo ""
+            echo -n "Selecciona (1-2) [1]: "
+            read -r vpn_choice
+            
+            case "${vpn_choice:-1}" in
+                2)
+                    DOMAIN_NAME="$PUBLIC_IP"
+                    USE_DOMAIN="false"
+                    ;;
+                *)
+                    DOMAIN_NAME="vpn.$user_domain"
+                    USE_DOMAIN="true"
+                    ;;
+            esac
+            
+            # Configurar n8n para usar Cloudflare Tunnel
+            N8N_HOST="n8n.$user_domain"
+            N8N_WEBHOOK_URL="https://n8n.$user_domain"
+            N8N_PROTOCOL="https"
+            N8N_SECURE_COOKIE="true"
+            
+            # Pedir token del túnel
+            echo ""
+            echo -n "Pega el token del túnel (o 'skip' para configurar después): "
+            read -r tunnel_token
+            
+            if [[ "$tunnel_token" == "skip" ]]; then
+                log_warning "Configuración de Cloudflare Tunnel omitida"
+                log_info "Puedes configurarlo después editando .env"
+                CLOUDFLARE_TUNNEL_TOKEN=""
+                INSTALL_CLOUDFLARE_TUNNEL="false"
+            elif [[ "$tunnel_token" =~ ^eyJ ]]; then
+                CLOUDFLARE_TUNNEL_TOKEN="$tunnel_token"
+                INSTALL_CLOUDFLARE_TUNNEL="true"
+                log_success "Token de Cloudflare Tunnel configurado"
+                echo ""
+                echo -e "${CYAN}📋 Después de la instalación, configura en Cloudflare:${NC}"
+                echo "   Tunnels → Tu túnel → Public Hostname → Add:"
+                echo "   • Subdomain: n8n | Domain: $user_domain | Service: http://n8n:5678"
+                echo ""
+            else
+                log_error "Token no válido (debe empezar con 'eyJ')"
+                CLOUDFLARE_TUNNEL_TOKEN=""
+                INSTALL_CLOUDFLARE_TUNNEL="false"
+            fi
+            
+            USE_DUCKDNS="false"
+            log_success "VPN configurada con: $DOMAIN_NAME"
+            if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" ]]; then
+                log_success "n8n accesible en: https://$N8N_HOST"
+            fi
+            ;;
+    esac
 }
 
 collect_wg_easy_config() {
@@ -397,37 +617,75 @@ collect_wg_easy_config() {
 
 show_configuration_summary() {
     clear
-    echo -e "${CYAN}📋 Resumen de configuración${NC}"
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                    📋 RESUMEN DE CONFIGURACIÓN                       ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "Por favor, revisa la configuración antes de continuar:"
     echo ""
-    echo -e "${GREEN}Sistema:${NC}"
+    
+    echo -e "${GREEN}🖥️  Sistema:${NC}"
     echo "  • Zona horaria: $TIMEZONE"
-    echo "  • Directorio de instalación: $WORK_DIR"
-    echo ""
-    echo -e "${GREEN}AdGuard Home:${NC}"
-    echo "  • Contraseña: [Configurada]"
-    echo "  • Puerto web: 8080 (HTTP) / 8443 (HTTPS)"
-    echo "  • Puerto inicial: 3000 (primer acceso)"
-    echo ""
-    echo -e "${GREEN}WireGuard:${NC}"
-    echo "  • Número de clientes: $WIREGUARD_PEERS"
-    echo "  • Servidor: $DOMAIN_NAME"
-    echo "  • Puerto: 51820/UDP"
+    echo "  • Directorio: $WORK_DIR"
     echo ""
     
-    if [[ "$USE_DUCKDNS" == "true" ]]; then
-        echo -e "${GREEN}DuckDNS:${NC}"
+    echo -e "${GREEN}🔒 WireGuard VPN (WG-Easy):${NC}"
+    echo "  • Servidor: $DOMAIN_NAME"
+    echo "  • Puerto VPN: 51820/UDP"
+    echo "  • Puerto Web: 51821/TCP"
+    echo "  • Contraseña: ✓ Configurada"
+    echo ""
+    
+    if [[ "$USE_DUCKDNS" == "true" && -n "$DUCKDNS_TOKEN" ]]; then
+        echo -e "${GREEN}🦆 DuckDNS:${NC}"
         echo "  • Dominio: $DUCKDNS_DOMAIN.duckdns.org"
-        echo "  • Actualización automática: Habilitada (cada 5 min)"
-        echo "  • Token: [Configurado]"
+        echo "  • Token: ✓ Configurado"
+        echo "  • Actualización: Cada 5 minutos"
         echo ""
     fi
-    echo -e "${GREEN}Otros servicios:${NC}"
-    echo "  • Portainer: Puerto 9000"
-    echo "  • Nginx Proxy Manager: Puerto 81 (web), 80/443 (proxy)"
-    echo "  • Watchtower: Actualizaciones automáticas"
     
+    echo -e "${GREEN}🛡️  AdGuard Home:${NC}"
+    echo "  • Puerto inicial: 3000 (configuración)"
+    echo "  • Puerto web: 8080"
+    echo ""
+    
+    if [[ "$INSTALL_N8N" == "true" ]]; then
+        echo -e "${GREEN}🤖 n8n (Automatización):${NC}"
+        echo "  • Puerto: 5678"
+        echo "  • Usuario: $N8N_USER"
+        echo "  • Contraseña: ✓ Configurada"
+        if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+            echo "  • Acceso público: https://$N8N_HOST"
+        else
+            echo "  • Acceso: Local + VPN"
+        fi
+        echo ""
+    else
+        echo -e "${YELLOW}🤖 n8n: No instalado${NC}"
+        echo ""
+    fi
+    
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        echo -e "${GREEN}☁️  Cloudflare Tunnel:${NC}"
+        echo "  • Estado: ✓ Configurado"
+        echo "  • Token: ✓ Guardado"
+        echo "  • n8n en: https://$N8N_HOST"
+        echo ""
+    fi
+    
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        echo -e "${GREEN}🌐 Nginx Proxy Manager:${NC}"
+        echo "  • Puerto: 81"
+        echo ""
+    fi
+    
+    echo -e "${GREEN}📦 Servicios adicionales:${NC}"
+    echo "  • Portainer: Puerto 9000"
+    echo "  • Watchtower: Actualizaciones automáticas"
+    echo ""
+    
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
     echo -n "¿Es correcta esta configuración? (Y/n): "
     read -r confirm
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
@@ -486,11 +744,206 @@ configure_duckdns_auto_update() {
     done
 }
 
+collect_n8n_config() {
+    clear
+    echo -e "${CYAN}🤖 Configuración de n8n (Automatización)${NC}"
+    echo ""
+    echo "n8n es una herramienta de automatización similar a Zapier/Make,"
+    echo "pero self-hosted y gratuita. Permite crear flujos de trabajo"
+    echo "conectando APIs, bases de datos, servicios web, etc."
+    echo ""
+    echo -e "${YELLOW}Ejemplos de uso:${NC}"
+    echo "• Recibir notificaciones de eventos en tu servidor"
+    echo "• Automatizar backups y enviar alertas"
+    echo "• Integrar con Telegram, Discord, Email, etc."
+    echo "• Procesar webhooks de servicios externos"
+    echo ""
+    echo -e "${GREEN}Acceso remoto:${NC}"
+    echo "• ${CYAN}Opción 1:${NC} Vía VPN (WireGuard) - Ya incluido"
+    echo "• ${CYAN}Opción 2:${NC} Vía Cloudflare Tunnel - HTTPS gratis, sin abrir puertos"
+    echo ""
+    
+    echo -n "¿Quieres instalar n8n? (Y/n): "
+    read -r install_n8n
+    
+    if [[ "$install_n8n" =~ ^[Nn]$ ]]; then
+        INSTALL_N8N="false"
+        log_info "n8n no se instalará"
+        press_enter
+        return
+    fi
+    
+    INSTALL_N8N="true"
+    echo ""
+    
+    # Configurar usuario y contraseña para n8n
+    echo -e "${YELLOW}Configura las credenciales de acceso a n8n:${NC}"
+    echo ""
+    
+    echo -n "Usuario para n8n [admin]: "
+    read -r n8n_user
+    N8N_USER="${n8n_user:-admin}"
+    
+    while true; do
+        echo -n "Contraseña para n8n (mínimo 8 caracteres): "
+        read -s N8N_PASSWORD
+        echo ""
+        
+        if [[ ${#N8N_PASSWORD} -lt 8 ]]; then
+            log_error "La contraseña debe tener al menos 8 caracteres"
+            continue
+        fi
+        
+        echo -n "Confirma la contraseña: "
+        read -s password_confirm
+        echo ""
+        
+        if [[ "$N8N_PASSWORD" == "$password_confirm" ]]; then
+            log_success "Credenciales de n8n configuradas"
+            break
+        else
+            log_error "Las contraseñas no coinciden"
+        fi
+    done
+    
+    echo ""
+    press_enter
+}
+
+collect_nginx_config() {
+    # Si ya se configuró Cloudflare Tunnel, probablemente no necesita Nginx
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        # Ya tiene acceso HTTPS vía Cloudflare, no necesita Nginx
+        INSTALL_NGINX="false"
+        return
+    fi
+    
+    # Si ya se marcó como true durante la configuración de Cloudflare DNS, no preguntar
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        return
+    fi
+    
+    clear
+    echo -e "${CYAN}🌐 Nginx Proxy Manager (Opcional)${NC}"
+    echo ""
+    echo "Nginx Proxy Manager permite:"
+    echo "• Usar nombres de dominio en lugar de IP:puerto"
+    echo "• Configurar certificados SSL automáticos (Let's Encrypt)"
+    echo "• Crear proxies reversos para tus servicios"
+    echo ""
+    echo -e "${YELLOW}¿Necesitas Nginx Proxy Manager?${NC}"
+    echo "• ${GREEN}SÍ${NC} - Si tienes un dominio propio y quieres HTTPS"
+    echo "• ${GREEN}SÍ${NC} - Si planeas usar subdominios (ej: n8n.midominio.com)"
+    echo "• ${RED}NO${NC} - Si solo accedes por IP:puerto o vía VPN"
+    echo ""
+    
+    echo -n "¿Instalar Nginx Proxy Manager? (y/N): "
+    read -r install_nginx
+    
+    if [[ "$install_nginx" =~ ^[Yy]$ ]]; then
+        INSTALL_NGINX="true"
+        log_success "Nginx Proxy Manager se instalará"
+    else
+        INSTALL_NGINX="false"
+        log_info "Nginx Proxy Manager no se instalará"
+    fi
+    
+    echo ""
+    press_enter
+}
+
+collect_cloudflare_tunnel_config() {
+    # Si ya se configuró en collect_network_config, no preguntar de nuevo
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        return
+    fi
+    
+    # Solo preguntar si n8n está instalado y no se configuró antes
+    if [[ "$INSTALL_N8N" != "true" ]]; then
+        INSTALL_CLOUDFLARE_TUNNEL="false"
+        return
+    fi
+    
+    # Si ya eligió otra opción de red, ofrecer Cloudflare Tunnel como extra
+    clear
+    echo -e "${CYAN}☁️  Cloudflare Tunnel (Acceso remoto adicional)${NC}"
+    echo ""
+    echo "Ya configuraste el acceso a tu servidor con: $DOMAIN_NAME"
+    echo ""
+    echo "Cloudflare Tunnel te permite además acceder a ${GREEN}n8n${NC} desde Internet"
+    echo "de forma segura, sin abrir puertos adicionales."
+    echo ""
+    echo -e "${GREEN}Ventajas:${NC}"
+    echo "• ✅ HTTPS automático y gratuito"
+    echo "• ✅ No necesitas abrir puertos en tu router"
+    echo "• ✅ Tu IP real queda oculta"
+    echo "• ✅ Acceso a n8n desde cualquier lugar sin VPN"
+    echo ""
+    echo -e "${YELLOW}Requisitos:${NC}"
+    echo "• Cuenta gratuita en Cloudflare"
+    echo "• Un dominio en Cloudflare"
+    echo ""
+    
+    echo -n "¿Quieres configurar Cloudflare Tunnel para n8n? (y/N): "
+    read -r install_tunnel
+    
+    if [[ ! "$install_tunnel" =~ ^[Yy]$ ]]; then
+        INSTALL_CLOUDFLARE_TUNNEL="false"
+        log_info "Cloudflare Tunnel no se instalará"
+        log_info "Podrás acceder a n8n vía VPN"
+        press_enter
+        return
+    fi
+    
+    INSTALL_CLOUDFLARE_TUNNEL="true"
+    echo ""
+    
+    echo -e "${YELLOW}Para obtener el token del túnel:${NC}"
+    echo "1. Ve a: https://one.dash.cloudflare.com/"
+    echo "2. Access → Tunnels → Create a tunnel"
+    echo "3. Nombre: 'raspberry-vpn'"
+    echo "4. Copia el token (empieza con 'eyJ...')"
+    echo ""
+    
+    echo -n "Pega el token del túnel (o 'skip' para después): "
+    read -r tunnel_token
+    
+    if [[ "$tunnel_token" == "skip" || -z "$tunnel_token" ]]; then
+        log_warning "Configuración omitida - puedes configurarlo después en .env"
+        CLOUDFLARE_TUNNEL_TOKEN=""
+        INSTALL_CLOUDFLARE_TUNNEL="false"
+    elif [[ "$tunnel_token" =~ ^eyJ ]]; then
+        CLOUDFLARE_TUNNEL_TOKEN="$tunnel_token"
+        log_success "Token configurado"
+        
+        echo ""
+        echo -n "Dominio para n8n (ej: n8n.tudominio.com): "
+        read -r n8n_domain
+        if [[ -n "$n8n_domain" ]]; then
+            N8N_HOST="$n8n_domain"
+            N8N_WEBHOOK_URL="https://$n8n_domain"
+            N8N_PROTOCOL="https"
+            N8N_SECURE_COOKIE="true"
+            log_success "n8n accesible en: https://$n8n_domain"
+        fi
+    else
+        log_error "Token no válido"
+        CLOUDFLARE_TUNNEL_TOKEN=""
+        INSTALL_CLOUDFLARE_TUNNEL="false"
+    fi
+    
+    echo ""
+    press_enter
+}
+
 collect_user_input() {
     welcome_message
     collect_timezone
     collect_network_config
     collect_wg_easy_config
+    collect_n8n_config
+    collect_cloudflare_tunnel_config
+    collect_nginx_config
     show_configuration_summary
 }
 
@@ -577,34 +1030,50 @@ install_docker() {
 install_docker_compose() {
     log_step "Instalando Docker Compose..."
     
-    if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
-        log_info "Docker Compose ya está instalado: $(docker-compose --version)"
-    else
-        log_info "Instalando Docker Compose..."
-        
-        # Detectar arquitectura
-        ARCH=$(uname -m)
-        case $ARCH in
-            armv7l)
-                COMPOSE_ARCH="linux-armv7"
-                ;;
-            aarch64)
-                COMPOSE_ARCH="linux-aarch64"
-                ;;
-            x86_64)
-                COMPOSE_ARCH="linux-x86_64"
-                ;;
-            *)
-                log_error "Arquitectura no soportada: $ARCH"
-                exit 1
-                ;;
-        esac
-        
-        curl -L "https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-${COMPOSE_ARCH}" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-        
-        log_success "Docker Compose instalado"
+    # Docker moderno incluye compose como plugin (docker compose sin guion)
+    if docker compose version &> /dev/null; then
+        log_info "Docker Compose plugin ya está instalado: $(docker compose version)"
+        log_success "Docker Compose listo"
+        return
     fi
+    
+    # Intentar instalar el plugin de compose
+    log_info "Instalando Docker Compose plugin..."
+    apt update -qq
+    apt install -y docker-compose-plugin 2>/dev/null || true
+    
+    # Verificar de nuevo
+    if docker compose version &> /dev/null; then
+        log_success "Docker Compose plugin instalado"
+        return
+    fi
+    
+    # Fallback: instalar binario standalone
+    log_info "Instalando Docker Compose standalone..."
+    ARCH=$(uname -m)
+    case $ARCH in
+        armv7l)
+            COMPOSE_ARCH="linux-armv7"
+            ;;
+        aarch64)
+            COMPOSE_ARCH="linux-aarch64"
+            ;;
+        x86_64)
+            COMPOSE_ARCH="linux-x86_64"
+            ;;
+        *)
+            log_error "Arquitectura no soportada: $ARCH"
+            exit 1
+            ;;
+    esac
+    
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-${COMPOSE_ARCH}" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    
+    # Crear alias para compatibilidad
+    ln -sf /usr/local/bin/docker-compose /usr/local/bin/docker-compose 2>/dev/null || true
+    
+    log_success "Docker Compose instalado"
 }
 
 configure_firewall() {
@@ -647,32 +1116,47 @@ configure_dns_resolution() {
         apt update -qq && apt install -y lsof
     fi
 
-    # Verificar si systemd-resolved está usando el puerto 53
-    if lsof -i :53 | grep -q systemd-resolved; then
-        log_warning "El servicio 'systemd-resolved' está usando el puerto 53."
-        log_info "Deteniendo y deshabilitando 'systemd-resolved' para liberar el puerto para AdGuard Home..."
-        
-        systemctl stop systemd-resolved
-        systemctl disable systemd-resolved
-        
-        # Eliminar el enlace simbólico de resolv.conf que crea systemd-resolved
-        if [ -L /etc/resolv.conf ]; then
-            rm /etc/resolv.conf
-        fi
-        # Crear un resolv.conf temporal para que el sistema no se quede sin DNS
-        echo "nameserver 1.1.1.1" > /etc/resolv.conf
-        
-        log_success "Servicio 'systemd-resolved' deshabilitado y puerto 53 liberado para AdGuard Home."
-    else
-        log_info "El puerto 53 parece estar libre y disponible para AdGuard Home."
+    # Ubuntu 24.04+ usa systemd-resolved por defecto - SIEMPRE deshabilitarlo para AdGuard
+    log_info "Deshabilitando systemd-resolved para liberar el puerto 53..."
+    
+    # Detener y deshabilitar systemd-resolved (ignorar errores si no existe)
+    systemctl stop systemd-resolved 2>/dev/null || true
+    systemctl disable systemd-resolved 2>/dev/null || true
+    
+    # Eliminar el enlace simbólico de resolv.conf que crea systemd-resolved
+    if [ -L /etc/resolv.conf ]; then
+        rm -f /etc/resolv.conf
+    fi
+    
+    # Crear un resolv.conf estático con DNS públicos
+    cat > /etc/resolv.conf << EOF
+# DNS configurado por raspberry-vpn setup
+# Después de la instalación, AdGuard Home gestionará el DNS
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
+    
+    # Hacer el archivo inmutable para que NetworkManager no lo sobreescriba
+    chattr +i /etc/resolv.conf 2>/dev/null || true
+    
+    log_success "Servicio 'systemd-resolved' deshabilitado y puerto 53 liberado."
+
+    # Matar cualquier proceso que siga usando el puerto 53
+    if lsof -i :53 >/dev/null 2>&1; then
+        log_warning "Liberando puerto 53 de procesos residuales..."
+        fuser -k 53/tcp 2>/dev/null || true
+        fuser -k 53/udp 2>/dev/null || true
+        sleep 2
     fi
 
-    # Comprobación final para otros posibles servicios
+    # Comprobación final
     if lsof -i :53 >/dev/null 2>&1 && ! docker ps | grep -q adguardhome; then
-        local service_name=$(lsof -i :53 -t -sTCP:LISTEN)
-        log_error "El puerto 53 sigue ocupado por otro proceso (PID: $service_name)."
-        log_error "Por favor, detén ese servicio manualmente antes de continuar."
-        exit 1
+        local service_pid=$(lsof -i :53 -t 2>/dev/null | head -1)
+        if [ -n "$service_pid" ]; then
+            log_warning "Proceso en puerto 53 (PID: $service_pid). Intentando terminar..."
+            kill -9 $service_pid 2>/dev/null || true
+            sleep 1
+        fi
     fi
     
     log_success "Resolución DNS configurada correctamente para la instalación."
@@ -794,8 +1278,19 @@ create_directories() {
     mkdir -p $WORK_DIR/adguardhome/work
     mkdir -p $WORK_DIR/adguardhome/conf
     mkdir -p $WORK_DIR/wg-easy
-    mkdir -p $WORK_DIR/nginx-proxy-manager/data
-    mkdir -p $WORK_DIR/nginx-proxy-manager/letsencrypt
+    
+    # Crear directorio de n8n si está habilitado
+    if [[ "$INSTALL_N8N" == "true" ]]; then
+        mkdir -p $WORK_DIR/n8n
+        # n8n necesita permisos específicos (usuario node con UID 1000)
+        chown -R 1000:1000 $WORK_DIR/n8n
+    fi
+    
+    # Crear directorios de Nginx solo si está habilitado
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        mkdir -p $WORK_DIR/nginx-proxy-manager/data
+        mkdir -p $WORK_DIR/nginx-proxy-manager/letsencrypt
+    fi
     
     log_success "Directorios creados"
 }
@@ -803,42 +1298,90 @@ create_directories() {
 generate_env_file() {
     log_step "Generando archivo de configuración..."
     
+    # Asegurar que las variables tienen valores por defecto
+    local env_n8n_host="${N8N_HOST:-localhost}"
+    local env_n8n_webhook="${N8N_WEBHOOK_URL:-}"
+    local env_n8n_protocol="${N8N_PROTOCOL:-http}"
+    local env_n8n_secure="${N8N_SECURE_COOKIE:-false}"
+    
     cat > $WORK_DIR/.env << EOF
+# ========================================================================
 # Archivo de configuración generado automáticamente
-# $(date)
+# Fecha: $(date)
+# ========================================================================
 
-# Configuración general
+# ========================
+# CONFIGURACIÓN GENERAL
+# ========================
 TZ=$TIMEZONE
 PUID=1000
 PGID=1000
 COMPOSE_PROJECT_NAME=vpn-server
 
-# Configuración de red
+# ========================
+# CONFIGURACIÓN DE RED
+# ========================
 SERVERURL=$DOMAIN_NAME
+SERVERPORT=51820
 PUBLIC_IP=$PUBLIC_IP
 
-# Configuración de DuckDNS
+# ========================
+# DUCKDNS (DDNS)
+# ========================
 USE_DUCKDNS=$USE_DUCKDNS
 DUCKDNS_DOMAIN=$DUCKDNS_DOMAIN
 DUCKDNS_TOKEN=$DUCKDNS_TOKEN
 
-# Configuración de WG-Easy
+# ========================
+# WG-EASY (WIREGUARD VPN)
+# ========================
 PASSWORD_HASH=$WG_EASY_PASSWORD_HASH
-
-# Configuración de WireGuard
 PEERS=$WIREGUARD_PEERS
-SERVERPORT=51820
 INTERNAL_SUBNET=10.14.14.0
 
-# Configuración de red interna
+# ========================
+# RED INTERNA DOCKER
+# ========================
 ADGUARD_IP=10.13.13.100
 WG_EASY_IP=10.13.13.4
+N8N_IP=10.13.13.50
 
-# Configuración de Watchtower
+# ========================
+# WATCHTOWER
+# ========================
 WATCHTOWER_POLL_INTERVAL=86400
+
+# ========================
+# N8N (AUTOMATIZACIÓN)
+# ========================
+INSTALL_N8N=$INSTALL_N8N
+N8N_USER=$N8N_USER
+N8N_PASSWORD=$N8N_PASSWORD
+N8N_HOST=$env_n8n_host
+N8N_WEBHOOK_URL=$env_n8n_webhook
+N8N_PROTOCOL=$env_n8n_protocol
+N8N_SECURE_COOKIE=$env_n8n_secure
+N8N_BASIC_AUTH_ACTIVE=true
+
+# ========================
+# CLOUDFLARE TUNNEL
+# ========================
+INSTALL_CLOUDFLARE_TUNNEL=$INSTALL_CLOUDFLARE_TUNNEL
+CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN
+
+# ========================
+# NGINX PROXY MANAGER
+# ========================
+INSTALL_NGINX=$INSTALL_NGINX
 EOF
     
-    log_success "Archivo de configuración generado"
+    # Verificar que el archivo se creó correctamente
+    if [[ -f "$WORK_DIR/.env" ]]; then
+        log_success "Archivo de configuración generado: $WORK_DIR/.env"
+    else
+        log_error "Error al generar archivo de configuración"
+        exit 1
+    fi
 }
 
 copy_configuration_files() {
@@ -931,7 +1474,7 @@ if [[ "$CURRENT_IP" != "$PREVIOUS_IP" ]]; then
         if docker ps | grep -q wg-easy; then
             log_message "Reiniciando WG-Easy para aplicar nueva IP..."
             cd /opt/vpn-server
-            docker-compose restart wg-easy
+            docker compose restart wg-easy
         fi
     else
         log_message "ERROR: Falló actualización de DuckDNS: $RESPONSE"
@@ -1154,34 +1697,37 @@ configure_system_dns() {
     log_step "Configurando DNS del sistema para usar AdGuard Home..."
     
     # Esperar a que AdGuard Home esté listo
-    local max_wait=60
+    local max_wait=120
     local elapsed=0
     
+    log_info "Esperando a que AdGuard Home esté listo..."
     while [ $elapsed -lt $max_wait ]; do
         if curl -s http://localhost:8080/ &>/dev/null; then
+            log_success "AdGuard Home está respondiendo"
             break
         fi
-        sleep 2
-        elapsed=$((elapsed + 2))
+        sleep 5
+        elapsed=$((elapsed + 5))
+        echo -n "."
     done
+    echo ""
     
     # Detectar IP local
     LOCAL_IP=$(hostname -I | awk '{print $1}')
     
-    # Configurar el sistema para usar AdGuard Home como DNS
-    cat > /etc/systemd/resolved.conf << EOF
-[Resolve]
-DNS=$LOCAL_IP
-FallbackDNS=1.1.1.1 8.8.8.8
-DNSStubListener=no
-DNSStubListenerExtra=127.0.0.1:5353
-Cache=no
-DNSSEC=no
-ReadEtcHosts=yes
+    # Desbloquear resolv.conf si estaba bloqueado
+    chattr -i /etc/resolv.conf 2>/dev/null || true
+    
+    # Configurar el sistema para usar AdGuard Home como DNS (SIN systemd-resolved)
+    cat > /etc/resolv.conf << EOF
+# DNS gestionado por AdGuard Home - raspberry-vpn
+# NO modificar manualmente
+nameserver $LOCAL_IP
+nameserver 1.1.1.1
 EOF
     
-    # Reiniciar systemd-resolved
-    systemctl restart systemd-resolved
+    # Bloquear el archivo para que no se sobreescriba
+    chattr +i /etc/resolv.conf 2>/dev/null || true
     
     log_success "Sistema configurado para usar AdGuard Home como DNS"
     log_info "DNS del sistema: $LOCAL_IP (AdGuard Home)"
@@ -1218,7 +1764,7 @@ configure_adguard_duckdns_whitelist() {
     # Solo necesitamos reiniciar el contenedor para asegurar que se aplique
     
     cd $WORK_DIR
-    docker-compose restart adguardhome
+    docker compose restart adguardhome
     
     # Esperar a que reinicie
     sleep 10
@@ -1236,8 +1782,40 @@ start_services() {
     
     cd $WORK_DIR
     
+    # Construir lista de perfiles a activar
+    local profiles_to_use=""
+    
+    # Servicios base (sin profile, siempre se inician)
+    local services_to_start="portainer wg-easy adguardhome watchtower"
+    
+    if [[ "$INSTALL_N8N" == "true" ]]; then
+        services_to_start="$services_to_start n8n"
+        log_info "✓ n8n será instalado"
+    fi
+    
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        profiles_to_use="cloudflare"
+        log_info "✓ Cloudflare Tunnel será instalado"
+    fi
+    
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        if [[ -n "$profiles_to_use" ]]; then
+            profiles_to_use="$profiles_to_use,nginx"
+        else
+            profiles_to_use="nginx"
+        fi
+        log_info "✓ Nginx Proxy Manager será instalado"
+    fi
+    
     # Iniciar servicios
-    docker-compose up -d
+    log_info "Iniciando servicios base: $services_to_start"
+    
+    if [[ -n "$profiles_to_use" ]]; then
+        log_info "Perfiles activos: $profiles_to_use"
+        COMPOSE_PROFILES="$profiles_to_use" docker compose up -d
+    else
+        docker compose up -d $services_to_start
+    fi
     
     # Esperar a que los servicios estén listos
     log_info "Esperando a que los servicios estén listos..."
@@ -1251,7 +1829,19 @@ wait_for_services() {
     local elapsed=0
     local interval=10
     
-    local services=("adguardhome" "wg-easy" "portainer" "nginx-proxy-manager" "watchtower")
+    # Lista de servicios base
+    local services=("adguardhome" "wg-easy" "portainer" "watchtower")
+    
+    # Añadir servicios opcionales si están instalados
+    if [[ "$INSTALL_N8N" == "true" ]]; then
+        services+=("n8n")
+    fi
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        services+=("cloudflared")
+    fi
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        services+=("nginx-proxy-manager")
+    fi
     
     while [ $elapsed -lt $max_wait ]; do
         local all_healthy=true
@@ -1279,7 +1869,7 @@ wait_for_services() {
     done
     
     log_warning "Algunos servicios pueden tardar en estar completamente listos"
-    log_info "Puedes verificar el estado con: docker-compose ps"
+    log_info "Puedes verificar el estado con: docker compose ps"
 }
 
 # ========================================================================
@@ -1302,41 +1892,61 @@ show_final_info() {
     
     echo -e "${CYAN}📋 Información de acceso:${NC}"
     echo ""
+    echo -e "${GREEN}🔒 WG-Easy (VPN - Interfaz Web WireGuard):${NC}"
+    echo "   URL: http://$LOCAL_IP:51821"
+    echo "   Contraseña: [La que configuraste]"
+    echo "   Servidor VPN: $DOMAIN_NAME:51820"
+    echo ""
     echo -e "${GREEN}🛡️  AdGuard Home (Bloqueo de anuncios):${NC}"
     echo "   URL inicial: http://$LOCAL_IP:3000 (primera configuración)"
     echo "   URL final: http://$LOCAL_IP:8080 (después de configurar)"
-    echo "   Usuario: [Configuras en el primer acceso]"
-    echo "   Contraseña: [Configuras en el primer acceso]"
     echo ""
     echo -e "${GREEN}🐳 Portainer (Gestión Docker):${NC}"
     echo "   URL: http://$LOCAL_IP:9000"
     echo "   (Crea tu usuario administrador en el primer acceso)"
     echo ""
-    echo -e "${GREEN}🚀 Nginx Proxy Manager:${NC}"
-    echo "   URL: http://$LOCAL_IP:81"
-    echo "   Usuario: admin@example.com"
-    echo "   Contraseña: changeme"
-    echo ""
-    echo -e "${GREEN}🔒 WG-Easy (Interfaz Web WireGuard):${NC}"
-    echo "   URL: http://$LOCAL_IP:51821"
-    echo "   Usuario: admin"
-    echo "   Contraseña: [La que configuraste para WG-Easy]"
-    echo "   Servidor VPN: $DOMAIN_NAME:51820"
-    echo "   Clientes configurados: Gestionado desde WG-Easy"
-    echo ""
+    
+    if [[ "$INSTALL_N8N" == "true" ]]; then
+        echo -e "${GREEN}🤖 n8n (Automatización):${NC}"
+        echo "   URL local: http://$LOCAL_IP:5678"
+        echo "   Usuario: $N8N_USER"
+        echo "   Contraseña: [La que configuraste]"
+        if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+            echo -e "   ${CYAN}🌐 URL pública: https://$N8N_HOST${NC}"
+        else
+            echo -e "   ${CYAN}💡 Acceso remoto: Conéctate a la VPN primero${NC}"
+        fi
+        echo ""
+    fi
+    
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        echo -e "${GREEN}☁️  Cloudflare Tunnel:${NC}"
+        echo "   Estado: ✅ Activo"
+        echo "   n8n accesible en: https://$N8N_HOST"
+        echo ""
+        echo -e "   ${YELLOW}📋 Siguiente paso en Cloudflare:${NC}"
+        echo "   1. Ve a dash.cloudflare.com → Zero Trust → Tunnels"
+        echo "   2. Selecciona tu túnel → Public Hostname"
+        echo "   3. Añade: n8n.tudominio.com → http://n8n:5678"
+        echo ""
+    fi
+    
+    if [[ "$INSTALL_NGINX" == "true" ]]; then
+        echo -e "${GREEN}🚀 Nginx Proxy Manager:${NC}"
+        echo "   URL: http://$LOCAL_IP:81"
+        echo "   Usuario: admin@example.com"
+        echo "   Contraseña: changeme"
+        echo ""
+    fi
     
     if [[ "$USE_DUCKDNS" == "true" ]]; then
         echo -e "${GREEN}🦆 DuckDNS:${NC}"
         echo "   Dominio: $DUCKDNS_DOMAIN.duckdns.org"
         echo "   Actualización automática: ✅ Habilitada"
         echo "   Verificación: Cada 5 minutos"
-        echo "   Logs: /opt/vpn-server/duckdns.log"
         echo ""
     fi
     
-    echo -e "${YELLOW}📱 Para obtener códigos QR de tus clientes VPN:${NC}"
-    echo "   cd $WORK_DIR && ./manage.sh"
-    echo ""
     echo -e "${YELLOW}🔧 Para gestionar el sistema:${NC}"
     echo "   cd $WORK_DIR && ./manage.sh"
     echo ""
@@ -1349,7 +1959,18 @@ show_final_info() {
     fi
     echo ""
     
-    echo -e "${GREEN}🎉 ¡Disfruta de tu servidor VPN casero!${NC}"
+    echo -e "${MAGENTA}📱 Acceso remoto:${NC}"
+    if [[ "$INSTALL_CLOUDFLARE_TUNNEL" == "true" && -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        echo "• n8n: https://$N8N_HOST (desde cualquier lugar)"
+        echo "• Otros servicios: Conéctate a la VPN primero"
+    else
+        echo "1. Conéctate a tu VPN desde el móvil/PC"
+        echo "2. Accede a los servicios usando la IP local ($LOCAL_IP)"
+        echo "3. ¡Listo! Es como estar en casa"
+    fi
+    echo ""
+    
+    echo -e "${GREEN}🎉 ¡Disfruta de tu servidor casero!${NC}"
     echo ""
 }
 
